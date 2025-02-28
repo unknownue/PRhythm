@@ -13,220 +13,255 @@ PRhythm is an automated tool that monitors GitHub repositories for merged Pull R
 - **PR Synchronization Tracking**: Tracks which PRs have been processed and identifies unsynchronized PRs
 - **Multi-language Support**: Generate analysis reports in different languages (English, Chinese, etc.)
 
-## Architecture
+## Quick Start
 
-The system follows a four-step workflow:
+PRhythm offers two deployment methods: Docker containerized deployment and local direct deployment. Choose the one that best suits your needs.
 
-1. **Monitor**: Watches configured GitHub repositories for newly merged PRs
-2. **Collect**: Uses GitHub CLI to extract detailed information about the merged PRs
-3. **Analyze**: Processes PR data through LLM APIs with specialized prompts to generate insights
-4. **Publish**: Distributes the analysis reports to configured publishing platforms
+### Method 1: Using Docker (Recommended)
 
-## Prerequisites
+Docker deployment provides an isolated environment and simplified setup process, particularly suitable for team use or server deployment.
 
-- Docker and Docker Compose (for containerized deployment)
-- GitHub CLI (`gh`) authenticated with appropriate permissions
-- Access to an LLM API service (OpenAI, Anthropic, etc.)
-- API access to your publishing platform (Notion, WordPress, etc.)
+1. **Clone the repository and prepare configuration**:
+   ```bash
+   # Clone the repository
+   git clone https://github.com/yourusername/PRhythm.git
+   cd PRhythm
+   
+   # Create and edit configuration file
+   cp config.example.yaml config.yaml
+   # Edit config.yaml with your preferred editor
+   ```
 
-## Installation
+2. **Set environment variables**:
+   ```bash
+   # Create .env file or export environment variables directly
+   echo "GITHUB_TOKEN=your-github-token" > .env
+   echo "LLM_API_KEY=your-llm-api-key" >> .env
+   echo "DEEPSEEK_API_KEY=your-deepseek-api-key" >> .env
+   ```
 
-### Using Docker (Recommended)
+3. **Start Docker container**:
+   ```bash
+   cd docker
+   docker-compose up -d
+   ```
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/PRhythm.git
-cd PRhythm
+4. **View logs and status**:
+   ```bash
+   # View container logs
+   docker logs -f prhythm
+   
+   # Check generated reports
+   ls -la ../analysis
+   ```
 
-# Create configuration file
-cp config.example.yaml config.yaml
-# Edit config.yaml with your settings
+### Method 2: Local Direct Deployment
 
-# Authenticate GitHub CLI (if not already done)
-gh auth login
+If you prefer running in your local environment or need more customization control, you can choose local deployment.
 
-# Build and start the container
-cd docker && docker-compose up -d
-```
+1. **Clone the repository and install dependencies**:
+   ```bash
+   # Clone the repository
+   git clone https://github.com/yourusername/PRhythm.git
+   cd PRhythm
+   
+   # Install dependencies
+   pip install -r requirements.txt
+   ```
 
-### Manual Installation
+2. **Prepare configuration**:
+   ```bash
+   # Create and edit configuration file
+   cp config.example.yaml config.yaml
+   # Edit config.yaml with your preferred editor
+   ```
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/PRhythm.git
-cd PRhythm
+3. **Set environment variables**:
+   ```bash
+   # Set necessary environment variables
+   export GITHUB_TOKEN="your-github-token"
+   export LLM_API_KEY="your-llm-api-key"
+   export DEEPSEEK_API_KEY="your-deepseek-api-key"  # If using DeepSeek
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
+4. **Initialize directory structure**:
+   ```bash
+   python scripts/check_pull_repo.py
+   ```
 
-# Configure the application
-cp config.example.yaml config.yaml
-# Edit config.yaml with your settings
-```
+5. **Run automation script**:
+   ```bash
+   # Make script executable
+   chmod +x update_pr_reports.sh
+   
+   # Run script
+   ./update_pr_reports.sh
+   ```
 
-## Configuration
+6. **Set up scheduled task** (optional):
+   ```bash
+   # Edit crontab
+   crontab -e
+   
+   # Add the following line (runs hourly)
+   0 * * * * /path/to/prhythm/update_pr_reports.sh >> /path/to/prhythm/cron.log 2>&1
+   ```
 
-Create a `config.yaml` file with the following structure:
+## Detailed Usage Guide
+
+Regardless of which deployment method you choose, PRhythm provides a complete set of scripts to implement an automated workflow. Here are the detailed usage steps:
+
+### 1. Configuration File Explanation
+
+`config.yaml` is the core configuration file for PRhythm, containing the following main sections:
 
 ```yaml
 github:
   repositories:
     - owner/repo1
     - owner/repo2
-  check_interval: 3600  # in seconds
+  check_interval: 3600  # Check interval in seconds
+  token: ""  # Recommended to set via GITHUB_TOKEN environment variable
 
 llm:
-  # Default provider configuration
-  provider: "openai"  # or "deepseek", "anthropic", etc.
-  api_key: "your-api-key"  # Set via environment variable LLM_API_KEY
-  model: "gpt-4"  # or "claude-3-opus", etc.
+  provider: "deepseek"  # Options: openai, deepseek, etc.
+  api_key: ""  # Recommended to set via environment variable
+  model: "deepseek-reasoner"  # Or gpt-4, deepseek-chat, etc.
   temperature: 0.3
   
-  # Provider-specific configurations
   providers:
-    openai:
-      base_url: "https://api.openai.com/v1"
-      # model and api_key will be inherited from the default settings if not specified
-    
     deepseek:
       base_url: "https://api.deepseek.com"
-      api_key: ""  # Set via environment variable DEEPSEEK_API_KEY
-      model: "deepseek-chat"  # Available models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (DeepSeek-R1)
-  
-publishing:
-  platform: "notion"  # or "wordpress", "custom", etc.
-  api_key: "your-publishing-platform-api-key"
-  target_page_id: "your-notion-page-id"  # if using Notion
+      model: "deepseek-reasoner"  # Available models: deepseek-chat, deepseek-reasoner
 ```
 
-## Usage
+### 2. Manually Running Individual Steps
 
-### Running with Docker
+If you want to understand the entire process or run certain steps individually, you can follow these methods:
 
-```bash
-# Start the service
-cd docker && docker-compose up -d
-
-# View logs
-cd docker && docker-compose logs -f
-
-# Run a one-time analysis of a specific PR
-cd docker && docker-compose run --rm prhythm python -m prhythm.analyze --repo owner/repo --pr-number 123
-
-# Stop the service
-cd docker && docker-compose down
-```
-
-### Running Manually
+#### Check Repository Status
 
 ```bash
-# Start the monitoring service
-python -m prhythm.monitor
-
-# Or run as a background service
-nohup python -m prhythm.monitor > prhythm.log 2>&1 &
-
-# Analyze a specific PR
-python -m prhythm.analyze --repo owner/repo --pr-number 123
-
-# Publish the latest analysis
-python -m prhythm.publish --report-path ./reports/latest.md
-
-# Check and clone tracked repositories
 python scripts/check_pull_repo.py
-
-# Create directories without cloning repositories
-python scripts/check_pull_repo.py --skip-clone
 ```
 
-### Tracking Merged PRs
-
-The `track_merged_prs.py` script allows you to track which PRs have been processed and identify unsynchronized PRs:
+#### Find Unsynchronized PRs
 
 ```bash
-# Check for unsynchronized PRs in a repository
 python scripts/track_merged_prs.py --repo "owner/repo"
-
-# Check with GitHub token for higher API rate limits
-python scripts/track_merged_prs.py --repo "owner/repo" --token "your-github-token"
-
-# Limit the number of PRs to fetch (default is 10)
-python scripts/track_merged_prs.py --repo "owner/repo" --limit 20
-
-# Update the status file with the latest PR
-python scripts/track_merged_prs.py --repo "owner/repo" --update
-
-# Update with a specific operation name
-python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete"
-
-# Update with operation status (success or failure)
-python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete" --status "success"
 ```
 
-The script maintains a status file at `repos/pr_processing_status.json` that tracks:
-- The latest processed PR number for each repository
-- Timestamp of the last update
-- Title and URL of the latest processed PR
-- History of batch operations (limited to the last 100 operations)
-
-### Fetching PR Information
-
-The `fetch_pr_info.py` script allows you to fetch detailed information about a specific PR:
+#### Get Information for a Specific PR
 
 ```bash
-# Fetch information for a specific PR
 python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123
 ```
 
-The script will:
-- Fetch detailed PR information using GitHub CLI
-- Store the information in a repository-specific directory under `output/`
-- Include PR metadata, commits, files, comments, reviews, and diff
-
-### Analyzing PR Information
-
-The `analyze_pr.py` script allows you to analyze PR information using various LLM providers (OpenAI, DeepSeek, etc.):
+#### Analyze PR and Generate Report
 
 ```bash
-# Analyze PR information using the default LLM provider (specified in config.yaml)
-python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language en
+# Using default language and provider
+python scripts/analyze_pr.py --json output/repo_name/pr_123_20240228_123456.json
 
-# Analyze PR information using a specific LLM provider
-python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn --provider deepseek
-
-# Specify a different configuration file
-python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --config custom_config.yaml
+# Specify language and provider
+python scripts/analyze_pr.py --json output/repo_name/pr_123_20240228_123456.json --language zh-cn --provider deepseek
 ```
 
-The script will:
-- Read the PR information from the JSON file
-- Use the specified LLM provider to analyze the PR
-- Generate a markdown report in the specified language
-- Save the report to the `analysis/repo_name/` directory
+#### Update PR Processing Status
 
-## Development
+```bash
+python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete" --status "success"
+```
 
-### Docker Image Details
+### 3. Automation Script Explanation
 
-The Docker image is built on Python 3.10-slim and includes:
-- GitHub CLI for PR data collection
-- Python dependencies for LLM API integration and publishing
-- Minimal footprint with no desktop environment
+The `update_pr_reports.sh` script automatically executes the complete PR analysis workflow:
 
-### Adding a New Publishing Platform
+1. Check and update configured repositories
+2. Get unsynchronized PRs for each repository
+3. Get detailed information for each PR
+4. Use LLM to analyze PRs and generate reports
+5. Update PR processing status
 
-To add support for a new publishing platform:
+You can run this script directly or set it up as a scheduled task:
 
-1. Create a new file in `prhythm/publishers/`
-2. Implement the `Publisher` interface
-3. Register your publisher in `prhythm/publisher.py`
+```bash
+# Run directly
+./update_pr_reports.sh
+
+# Or set up as a scheduled task
+crontab -e
+# Add: 0 * * * * /path/to/prhythm/update_pr_reports.sh >> /path/to/prhythm/cron.log 2>&1
+```
+
+### 4. Docker Environment Explanation
+
+If using Docker deployment, PRhythm will automatically set up a scheduled task to check for new PRs hourly. You can manage the Docker container with these commands:
+
+```bash
+# Start container
+cd docker && docker-compose up -d
+
+# View logs
+docker logs -f prhythm
+
+# Run analysis manually (without waiting for scheduled task)
+docker exec -it prhythm /app/update_pr_reports.sh
+
+# Stop container
+cd docker && docker-compose down
+```
+
+### 5. Output Files Explanation
+
+Files generated by PRhythm are saved in the following directories:
+
+- **PR Information**: `output/repo_name/pr_123_20240228_123456.json`
+- **Analysis Reports**: `analysis/repo_name/pr_123_zh-cn_20240228_123456.md`
+- **Processing Status**: `repos/pr_processing_status.json`
+
+## Advanced Configuration
+
+### Customizing Analysis Prompt Template
+
+You can customize the analysis prompt template by editing the `prompt/analyze_pr.prompt` file. The template supports various variable substitutions, such as `{pr_data['title']}`, `{output_language}`, etc.
+
+### Adding New LLM Providers
+
+To add a new LLM provider, add the corresponding configuration to the `llm.providers` section in `config.yaml`:
+
+```yaml
+llm:
+  providers:
+    new_provider:
+      base_url: "https://api.new-provider.com"
+      api_key: ""  # Recommended to set via environment variable
+      model: "model-name"
+```
+
+### Customizing Docker Configuration
+
+You can customize the Docker configuration by editing `docker/docker-compose.yml` and `docker/Dockerfile`, such as changing the scheduled task frequency, adding additional environment variables, etc.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **GitHub API Rate Limits**: Ensure you've set a valid `GITHUB_TOKEN` environment variable
+2. **LLM API Errors**: Check if your API key is correct and you have sufficient quota
+3. **Docker Permission Issues**: Ensure Docker has access to the mounted directories
+
+### Log Files
+
+- Docker environment: Logs are saved in `/app/cron.log` inside the container
+- Local environment: Logs are saved in script output or redirected files
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Feel free to submit a Pull Request.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
@@ -238,5 +273,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - GitHub CLI for providing an excellent command-line interface
-- OpenAI/Anthropic for their powerful LLM APIs
+- OpenAI/DeepSeek for their powerful LLM APIs
 - All contributors who help improve this tool

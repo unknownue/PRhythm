@@ -11,7 +11,9 @@ RUN apt-get install -y --no-install-recommends \
     curl \
     gnupg \
     ca-certificates \
-    git
+    git \
+    cron \
+    jq
 
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -24,16 +26,14 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create a non-root user
-RUN useradd -m -s /bin/bash prhythm && \
-    mkdir -p /app/reports && \
-    chown -R prhythm:prhythm /app
+# Create necessary directories
+RUN mkdir -p /app/output /app/analysis /app/repos
+
+# Keep root user to be able to set up cron jobs
+# Note: In production environments, consider security implications, may need more complex setup
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-
-# Switch to non-root user
-USER prhythm
 
 # Default command
 CMD ["bash"]

@@ -1,91 +1,91 @@
-# PR分析脚本改进记录
+# PR Analysis Script Improvement Record
 
-## 改进概述
+## Improvement Overview
 
-我们对PR分析脚本进行了三个主要方面的改进：
-1. **模型参数优化**：根据PR复杂度动态调整LLM API参数
-2. **内容质量提升**：增强prompt模板，提供更深入的技术分析
-3. **可视化元素支持**：添加了ASCII图表和表格支持
+We have made improvements to the PR analysis script in three main areas:
+1. **Model Parameter Optimization**: Dynamically adjust LLM API parameters based on PR complexity
+2. **Content Quality Enhancement**: Enhance prompt templates to provide deeper technical analysis
+3. **Visualization Element Support**: Added support for ASCII charts and tables
 
-## 1. 模型参数优化
+## 1. Model Parameter Optimization
 
-### 实现的功能
-- 添加了`calculate_pr_complexity`函数，基于以下因素计算PR复杂度：
-  - 文件变更数量
-  - 代码行变更总量
-  - 评论数量
-  - 描述长度
-- 根据复杂度动态调整以下参数：
-  - `max_tokens`：复杂PR使用更多token（最高8000）
-  - `temperature`：复杂PR使用更低temperature（0.2）以获得更确定性的结果
-  - `top_p`：根据复杂度调整采样策略
-  - `frequency_penalty`：复杂PR增加词汇多样性
+### Implemented Features
+- Added `calculate_pr_complexity` function that calculates PR complexity based on the following factors:
+  - Number of file changes
+  - Total lines of code changed
+  - Number of comments
+  - Description length
+- Dynamically adjust the following parameters based on complexity:
+  - `max_tokens`: More tokens for complex PRs (up to 8000)
+  - `temperature`: Lower temperature (0.2) for complex PRs to get more deterministic results
+  - `top_p`: Adjust sampling strategy based on complexity
+  - `frequency_penalty`: Increase vocabulary diversity for complex PRs
 
-### 效果
-- 对简单PR使用更高的创造性（temperature=0.4）
-- 对复杂PR使用更多token和更确定性的输出
-- 在控制台输出复杂度分数和使用的参数，便于调试
+### Effects
+- Higher creativity (temperature=0.4) for simple PRs
+- More tokens and more deterministic output for complex PRs
+- Output complexity score and parameters used in the console for debugging
 
-## 2. 内容质量提升
+## 2. Content Quality Enhancement
 
-### 改进的prompt模板
-- **技术分析**部分：
-  - 添加了对代码模式和算法变更的具体分析
-  - 要求提供具体代码示例说明变更原理
-  - 添加代码质量改进或潜在问题分析
-  - 增加了依赖分析和风险评级（高/中/低）
-  - 添加性能影响评估
-- **上下文洞察**部分：
-  - 要求提供具体技术债务引用
-  - 添加具体优化建议
-  - 分析设计模式使用和架构影响
-- **知识背景**部分：
-  - 添加相关PR/问题的简要描述
-  - 增加外部资源上下文
-  - 添加相关最佳实践
-- **审查总结**部分：
-  - 突出未解决的问题或关注点
-  - 记录审阅者之间的共识点
+### Improved Prompt Template
+- **Technical Analysis** section:
+  - Added specific analysis of code patterns and algorithm changes
+  - Request specific code examples to explain the principles of changes
+  - Added code quality improvements or potential issues analysis
+  - Added dependency analysis and risk rating (high/medium/low)
+  - Added performance impact assessment
+- **Context Insights** section:
+  - Request specific technical debt references
+  - Added specific optimization suggestions
+  - Analysis of design pattern usage and architectural impact
+- **Knowledge Background** section:
+  - Added brief descriptions of related PRs/issues
+  - Added external resource context
+  - Added related best practices
+- **Review Summary** section:
+  - Highlight unresolved issues or concerns
+  - Record consensus points among reviewers
 
-## 3. 可视化元素支持
+## 3. Visualization Element Support
 
-### 添加的功能
-- 新增了"可视化表示"部分，支持以下可视化元素：
-  - 简单架构图，显示受影响的组件
-  - 逻辑变更流程图
-  - API变更对比表
-  - 依赖关系图
-- 提供了ASCII流程图示例作为参考
-- 添加了表格格式化指导
+### Added Features
+- Added "Visual Representation" section supporting the following visualization elements:
+  - Simple architecture diagrams showing affected components
+  - Logic change flowcharts
+  - API change comparison tables
+  - Dependency graphs
+- Provided ASCII flowchart examples as reference
+- Added table formatting guidance
 
-### 效果
-- 生成的报告现在包含API变更对比表
-- 包含依赖关系图，显示受影响的组件
-- 使用ASCII字符创建简单但有效的可视化
+### Effects
+- Generated reports now include API change comparison tables
+- Include dependency graphs showing affected components
+- Create simple but effective visualizations using ASCII characters
 
-## 测试结果
+## Test Results
 
-我们使用改进后的脚本分析了Bevy引擎的PR #18084，结果显示：
-- 复杂度评分：0（这是一个相对简单的PR）
-- 使用参数：max_tokens=4000, temperature=0.4, top_p=0.9
-- 生成的报告包含了更深入的技术分析
-- 成功添加了API变更对比表和依赖图
-- 报告结构更清晰，内容更丰富
+We analyzed Bevy engine's PR #18084 using the improved script, with the following results:
+- Complexity score: 0 (this is a relatively simple PR)
+- Parameters used: max_tokens=4000, temperature=0.4, top_p=0.9
+- Generated report contains deeper technical analysis
+- Successfully added API change comparison table and dependency graph
+- Report structure is clearer with richer content
 
-## 未来改进方向
+## Future Improvement Directions
 
-1. **更精确的复杂度计算**：
-   - 考虑代码变更的语义复杂性
-   - 分析PR涉及的代码库核心部分
+1. **More Precise Complexity Calculation**:
+   - Consider semantic complexity of code changes
+   - Analyze core parts of the codebase involved in the PR
 
-2. **更多可视化选项**：
-   - 支持Mermaid图表语法
-   - 添加代码变更热图
+2. **More Visualization Options**:
+   - Support Mermaid chart syntax
+   - Add code change heat maps
 
-3. **多模型协作**：
-   - 使用一个模型进行初步分析
-   - 使用另一个模型进行深入分析和可视化
+3. **Multi-Model Collaboration**:
+   - Use one model for preliminary analysis
+   - Use another model for in-depth analysis and visualization
 
-4. **自适应prompt**：
-   - 根据PR类型（功能、bug修复、重构等）调整prompt
-   - 为不同复杂度的PR提供不同深度的分析指导 
+4. **Adaptive Prompts**:
+   - Adjust prompts based on PR type (feature, bug fix, refactoring, etc.)
+   - Provide different depth of analysis guidance for PRs of different complexity 

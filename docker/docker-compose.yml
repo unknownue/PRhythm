@@ -12,9 +12,27 @@ services:
       - TZ=UTC
       - PYTHONUNBUFFERED=1  # Disable Python output buffering to ensure real-time logging
       # Add any additional environment variables here
-      # - LLM_API_KEY=${LLM_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       # - NOTION_API_KEY=${NOTION_API_KEY}
-    # Use tail -f command to keep the container running
-    command: tail -f /dev/null
-    # Uncomment to use a custom command instead of the default
-    # command: python -m prhythm.analyze --repo owner/repo --pr-number 123 
+    # Use custom command to start scheduled tasks
+    command: >
+      sh -c "
+        # Initial setup
+        python scripts/check_pull_repo.py --skip-clone &&
+        # Make script executable
+        chmod +x /app/update_pr_reports.sh &&
+        # Install cron (with sudo to avoid permission issues)
+        apt-get update || true &&
+        apt-get install -y cron jq || true &&
+        # Create cron job
+        echo '0 * * * * cd /app && ./update_pr_reports.sh >> /app/cron.log 2>&1' > /etc/cron.d/prhythm-cron &&
+        chmod 0644 /etc/cron.d/prhythm-cron &&
+        crontab /etc/cron.d/prhythm-cron &&
+        # Start cron and keep container running
+        service cron start || cron &&
+        tail -f /dev/null
+      "
+    # Uncomment below to use custom command instead of scheduled task
+    # command: python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn 

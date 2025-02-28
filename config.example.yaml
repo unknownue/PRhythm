@@ -7,7 +7,7 @@ github:
     - owner/repo2
   check_interval: 3600  # in seconds (1 hour)
   # GitHub token for authentication (recommended to set via environment variable GITHUB_TOKEN)
-  token: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Set via environment variable GITHUB_TOKEN instead of here
+  token: ""  # Set via environment variable GITHUB_TOKEN instead of here
   # Optional: filter PRs by labels
   # include_labels:
   #   - feature
@@ -53,6 +53,11 @@ llm:
     2. The main purpose of this PR
     3. Potential impact on the codebase
     4. Any notable implementation details
+
+# Output configuration
+output:
+  language: "en"  # Output language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
+  # Additional output formatting options can be added here
 
 # Publishing configuration
 publishing:

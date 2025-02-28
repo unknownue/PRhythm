@@ -287,14 +287,15 @@ def call_llm_api(prompt, config, provider=None):
         env_var_name = f"{provider.upper()}_API_KEY"
         api_key = os.environ.get(env_var_name, '')
         
-        # Fall back to default LLM API key
-        if not api_key:
+        # Fall back to default LLM API key only if using the default provider
+        if not api_key and provider.lower() == config.get('llm', {}).get('provider', 'openai').lower():
             api_key = config.get('llm', {}).get('api_key', '')
             if not api_key:
                 api_key = os.environ.get('LLM_API_KEY', '')
     
     if not api_key:
         print(f"Error: API key for provider '{provider}' not found in configuration or environment variables")
+        print(f"Please set {provider.upper()}_API_KEY environment variable or configure it in config.yaml")
         sys.exit(1)
     
     # Get model from provider config or fall back to default

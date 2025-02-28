@@ -37,10 +37,11 @@ ENV/
 # Project specific
 reports/
 repos/
-config.yaml
 *.log
 output/
 analysis/
 
-# Secrets
-.env 
+# Secrets and Configuration
+.env
+config.yaml
+# Keep config.example.yaml as a template 
