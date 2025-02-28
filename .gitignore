@@ -40,6 +40,7 @@ repos/
 config.yaml
 *.log
 output/
+analysis/
 
 # Secrets
 .env 

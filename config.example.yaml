@@ -18,10 +18,23 @@ github:
 
 # LLM API configuration
 llm:
-  provider: "openai"  # or "anthropic", etc.
+  # Default provider configuration
+  provider: "openai"  # or "anthropic", "deepseek", etc.
   api_key: ""  # Set via environment variable LLM_API_KEY instead of here
   model: "gpt-4"  # or "claude-3-opus", etc.
   temperature: 0.3
+  
+  # Provider-specific configurations
+  providers:
+    openai:
+      base_url: "https://api.openai.com/v1"
+      # model and api_key will be inherited from the default settings if not specified
+    
+    deepseek:
+      base_url: "https://api.deepseek.com"
+      api_key: ""  # Set via environment variable DEEPSEEK_API_KEY instead of here
+      model: "deepseek-chat"  # Available models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (DeepSeek-R1)
+  
   # Analysis prompt template - variables: {title}, {number}, {description}, {diff}
   prompt_template: |
     Analyze the following GitHub Pull Request:

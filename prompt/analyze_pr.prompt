@@ -1,0 +1,89 @@
+You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a structured technical report in {output_language}. Include:
+
+### 1. Header Section
+- **Title**: {pr_data['title']}
+- **Direct Link**: {pr_data['url']}
+- **Author**: {pr_data['author']['login']}
+- **State**: {pr_data['state']}
+- **Created**: {pr_data['createdAt']}
+- **Merged**: {pr_data['mergedAt'] if pr_data['mergedAt'] else "Not merged"}
+- **Merged By**: {pr_data['mergedBy']['login'] if pr_data['mergedBy'] else "N/A"}
+
+### 2. Description Translation
+- Translate the PR description **accurately** to {output_language} while preserving:
+  - Code blocks/technical terms
+  - Issue reference links (e.g. #123)
+  - Special formatting (bullets/numbers)
+
+Original description:
+```
+{pr_data['body']}
+```
+
+### 3. Technical Analysis
+Perform deep analysis of:
+- **Code Changes**: 
+  - Identify key file modifications with specific code patterns or algorithms changed
+  - Explain technical rationale behind changes with concrete examples
+  - Analyze code quality improvements or potential issues
+  - Total files changed: {len(pr_data['files'])}
+  - Total commits: {len(pr_data['commits'])}
+- **Impact Assessment**:
+  - Affected modules/components with dependency analysis
+  - Potential side effects/regression risks with severity ratings (High/Medium/Low)
+  - Performance implications (if applicable)
+- **Contextual Insights**:
+  - Connections to existing technical debt with specific references
+  - Optimization opportunities with concrete suggestions
+  - Design pattern usage or architectural implications
+
+### 4. Knowledge Context
+- **Background Links**:
+  - Related design docs/RFCs
+  - Previous relevant PRs/issues with brief descriptions
+  - External resources that provide context
+- **Reference Materials**:
+  - Framework documentation links
+  - Architecture diagrams (if applicable)
+  - Best practices relevant to this change
+
+### 5. Review Summary
+- **Reviews**: {len(pr_data['reviews'])} reviews
+- **Comments**: {len(pr_data['comments'])} comments
+- **Key Discussion Points**: 
+  - Summarize important discussions from reviews and comments
+  - Highlight unresolved questions or concerns
+  - Note consensus points among reviewers
+
+### 6. File Changes Overview
+List the top 5 most significant files changed (by additions + deletions):
+{file_changes_summary}
+
+### 7. Visual Representation
+Create at least one of the following visualizations using markdown or ASCII:
+- A simple architecture diagram showing affected components
+- A flowchart representing the logic changes
+- A before/after comparison table for important API changes
+- A dependency graph showing impacted modules
+
+Example ASCII flowchart:
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Component A │────>│ Component B │────>│ Component C │
+└─────────────┘     └─────────────┘     └─────────────┘
+                          │
+                          ▼
+                    ┌─────────────┐
+                    │ Component D │
+                    └─────────────┘
+```
+
+**Output Format**: Markdown with technical depth
+**Tone**: Professional/neutral
+**Note**: 
+- Highlight critical security/compatibility issues in bold
+- Prioritize depth over breadth in your analysis
+- Focus on the most important aspects rather than trying to cover everything superficially
+- When uncertain about technical details, acknowledge limitations rather than speculating
+
+Respond with a comprehensive, well-structured analysis that would be valuable to both the PR author and reviewers.

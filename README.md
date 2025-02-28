@@ -8,9 +8,10 @@ PRhythm is an automated tool that monitors GitHub repositories for merged Pull R
 
 - **Automated PR Monitoring**: Periodically checks specified GitHub repositories for newly merged PRs
 - **Comprehensive PR Data Collection**: Gathers PR title, number, description, code diffs, and other relevant information
-- **Intelligent Analysis**: Leverages LLM APIs to analyze PR content and generate meaningful reports
+- **Intelligent Analysis**: Leverages LLM APIs (OpenAI, DeepSeek, etc.) to analyze PR content and generate meaningful reports
 - **Flexible Publishing Options**: Publishes analysis reports to platforms like Notion, custom blogs, or other documentation systems
 - **PR Synchronization Tracking**: Tracks which PRs have been processed and identifies unsynchronized PRs
+- **Multi-language Support**: Generate analysis reports in different languages (English, Chinese, etc.)
 
 ## Architecture
 
@@ -75,9 +76,22 @@ github:
   check_interval: 3600  # in seconds
 
 llm:
-  provider: "openai"  # or "anthropic", etc.
-  api_key: "your-api-key"
+  # Default provider configuration
+  provider: "openai"  # or "deepseek", "anthropic", etc.
+  api_key: "your-api-key"  # Set via environment variable LLM_API_KEY
   model: "gpt-4"  # or "claude-3-opus", etc.
+  temperature: 0.3
+  
+  # Provider-specific configurations
+  providers:
+    openai:
+      base_url: "https://api.openai.com/v1"
+      # model and api_key will be inherited from the default settings if not specified
+    
+    deepseek:
+      base_url: "https://api.deepseek.com"
+      api_key: ""  # Set via environment variable DEEPSEEK_API_KEY
+      model: "deepseek-chat"  # Available models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (DeepSeek-R1)
   
 publishing:
   platform: "notion"  # or "wordpress", "custom", etc.
@@ -168,6 +182,27 @@ The script will:
 - Fetch detailed PR information using GitHub CLI
 - Store the information in a repository-specific directory under `output/`
 - Include PR metadata, commits, files, comments, reviews, and diff
+
+### Analyzing PR Information
+
+The `analyze_pr.py` script allows you to analyze PR information using various LLM providers (OpenAI, DeepSeek, etc.):
+
+```bash
+# Analyze PR information using the default LLM provider (specified in config.yaml)
+python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language en
+
+# Analyze PR information using a specific LLM provider
+python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn --provider deepseek
+
+# Specify a different configuration file
+python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --config custom_config.yaml
+```
+
+The script will:
+- Read the PR information from the JSON file
+- Use the specified LLM provider to analyze the PR
+- Generate a markdown report in the specified language
+- Save the report to the `analysis/repo_name/` directory
 
 ## Development
 
