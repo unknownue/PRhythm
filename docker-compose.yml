@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  prhythm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prhythm
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./reports:/app/reports
+      - ~/.config/gh:/root/.config/gh:ro  # Mount GitHub CLI credentials (read-only)
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+      # Add any additional environment variables here
+      # - LLM_API_KEY=${LLM_API_KEY}
+      # - NOTION_API_KEY=${NOTION_API_KEY}
+    # Uncomment to use a custom command instead of the default
+    # command: python -m prhythm.analyze --repo owner/repo --pr-number 123 

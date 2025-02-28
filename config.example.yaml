@@ -1,0 +1,64 @@
+# PRhythm Configuration Example
+
+# GitHub repositories to monitor
+github:
+  repositories:
+    - owner/repo1
+    - owner/repo2
+  check_interval: 3600  # in seconds (1 hour)
+  # Optional: filter PRs by labels
+  # include_labels:
+  #   - feature
+  #   - bugfix
+  # exclude_labels:
+  #   - wip
+  #   - do-not-merge
+
+# LLM API configuration
+llm:
+  provider: "openai"  # or "anthropic", etc.
+  api_key: ""  # Set via environment variable LLM_API_KEY instead of here
+  model: "gpt-4"  # or "claude-3-opus", etc.
+  temperature: 0.3
+  # Analysis prompt template - variables: {title}, {number}, {description}, {diff}
+  prompt_template: |
+    Analyze the following GitHub Pull Request:
+    
+    Title: {title}
+    PR #{number}
+    
+    Description:
+    {description}
+    
+    Code Changes:
+    {diff}
+    
+    Please provide:
+    1. A summary of the changes
+    2. The main purpose of this PR
+    3. Potential impact on the codebase
+    4. Any notable implementation details
+
+# Publishing configuration
+publishing:
+  platform: "notion"  # or "wordpress", "custom", etc.
+  api_key: ""  # Set via environment variable NOTION_API_KEY instead of here
+  target_page_id: ""  # Notion page ID where reports will be published
+  # Optional: template for report formatting
+  report_template: |
+    # PR Analysis: {title} (#{number})
+    
+    **Merged on:** {merge_date}
+    **Author:** {author}
+    
+    ## Summary
+    {summary}
+    
+    ## Details
+    {details}
+    
+    ## Code Changes
+    {code_changes}
+    
+    ---
+    *Analyzed by PRhythm* 
