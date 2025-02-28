@@ -36,8 +36,10 @@ ENV/
 
 # Project specific
 reports/
+repos/
 config.yaml
 *.log
+output/
 
 # Secrets
 .env 

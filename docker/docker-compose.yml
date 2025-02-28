@@ -1,20 +1,20 @@
-version: '3.8'
-
 services:
   prhythm:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: prhythm
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./reports:/app/reports
+      - ..:/app  # Map the entire project directory to the container
       - ~/.config/gh:/root/.config/gh:ro  # Mount GitHub CLI credentials (read-only)
     restart: unless-stopped
     environment:
       - TZ=UTC
+      - PYTHONUNBUFFERED=1  # Disable Python output buffering to ensure real-time logging
       # Add any additional environment variables here
       # - LLM_API_KEY=${LLM_API_KEY}
       # - NOTION_API_KEY=${NOTION_API_KEY}
+    # Use tail -f command to keep the container running
+    command: tail -f /dev/null
     # Uncomment to use a custom command instead of the default
     # command: python -m prhythm.analyze --repo owner/repo --pr-number 123 

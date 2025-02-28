@@ -10,6 +10,7 @@ PRhythm is an automated tool that monitors GitHub repositories for merged Pull R
 - **Comprehensive PR Data Collection**: Gathers PR title, number, description, code diffs, and other relevant information
 - **Intelligent Analysis**: Leverages LLM APIs to analyze PR content and generate meaningful reports
 - **Flexible Publishing Options**: Publishes analysis reports to platforms like Notion, custom blogs, or other documentation systems
+- **PR Synchronization Tracking**: Tracks which PRs have been processed and identifies unsynchronized PRs
 
 ## Architecture
 
@@ -44,7 +45,7 @@ cp config.example.yaml config.yaml
 gh auth login
 
 # Build and start the container
-docker-compose up -d
+cd docker && docker-compose up -d
 ```
 
 ### Manual Installation
@@ -90,16 +91,16 @@ publishing:
 
 ```bash
 # Start the service
-docker-compose up -d
+cd docker && docker-compose up -d
 
 # View logs
-docker-compose logs -f
+cd docker && docker-compose logs -f
 
 # Run a one-time analysis of a specific PR
-docker-compose run --rm prhythm python -m prhythm.analyze --repo owner/repo --pr-number 123
+cd docker && docker-compose run --rm prhythm python -m prhythm.analyze --repo owner/repo --pr-number 123
 
 # Stop the service
-docker-compose down
+cd docker && docker-compose down
 ```
 
 ### Running Manually
@@ -116,27 +117,59 @@ python -m prhythm.analyze --repo owner/repo --pr-number 123
 
 # Publish the latest analysis
 python -m prhythm.publish --report-path ./reports/latest.md
+
+# Check and clone tracked repositories
+python scripts/check_pull_repo.py
+
+# Create directories without cloning repositories
+python scripts/check_pull_repo.py --skip-clone
 ```
+
+### Tracking Merged PRs
+
+The `track_merged_prs.py` script allows you to track which PRs have been processed and identify unsynchronized PRs:
+
+```bash
+# Check for unsynchronized PRs in a repository
+python scripts/track_merged_prs.py --repo "owner/repo"
+
+# Check with GitHub token for higher API rate limits
+python scripts/track_merged_prs.py --repo "owner/repo" --token "your-github-token"
+
+# Limit the number of PRs to fetch (default is 10)
+python scripts/track_merged_prs.py --repo "owner/repo" --limit 20
+
+# Update the status file with the latest PR
+python scripts/track_merged_prs.py --repo "owner/repo" --update
+
+# Update with a specific operation name
+python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete"
+
+# Update with operation status (success or failure)
+python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete" --status "success"
+```
+
+The script maintains a status file at `repos/pr_processing_status.json` that tracks:
+- The latest processed PR number for each repository
+- Timestamp of the last update
+- Title and URL of the latest processed PR
+- History of batch operations (limited to the last 100 operations)
+
+### Fetching PR Information
+
+The `fetch_pr_info.py` script allows you to fetch detailed information about a specific PR:
+
+```bash
+# Fetch information for a specific PR
+python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123
+```
+
+The script will:
+- Fetch detailed PR information using GitHub CLI
+- Store the information in a repository-specific directory under `output/`
+- Include PR metadata, commits, files, comments, reviews, and diff
 
 ## Development
-
-### Project Structure
-
-```
-PRhythm/
-├── prhythm/
-│   ├── __init__.py
-│   ├── monitor.py      # PR monitoring logic
-│   ├── collector.py    # GitHub data collection
-│   ├── analyzer.py     # LLM-based analysis
-│   ├── publisher.py    # Publishing to platforms
-│   └── utils.py        # Utility functions
-├── config.yaml         # Configuration file
-├── requirements.txt    # Dependencies
-├── Dockerfile          # Docker image definition
-├── docker-compose.yml  # Docker Compose configuration
-└── README.md           # This file
-```
 
 ### Docker Image Details
 

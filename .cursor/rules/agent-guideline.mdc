@@ -1,0 +1,13 @@
+---
+description: The rules to apply in agent mode
+globs: 
+alwaysApply: false
+---
+
+# Agent rule
+
+- The project overview is described in [README.md](mdc:README.md).
+- Generate code/comment in **English**.
+- When you find something to improve, stop and give advices to user instead of continuing generation.
+- Use python as the main script language.
+- All actions are done in docker container. The host machine only executes sh file to toggle action through docker.

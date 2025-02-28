@@ -3,8 +3,7 @@
 .gitignore
 
 # Docker
-Dockerfile
-docker-compose.yml
+docker/
 .dockerignore
 
 # Python
