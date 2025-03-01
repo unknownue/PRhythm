@@ -1,15 +1,14 @@
-# PRhythm - GitHub PR Analysis & Publishing Tool
+# PRhythm - GitHub PR Analysis Tool
 
 ## Overview
 
-PRhythm is an automated tool that monitors GitHub repositories for merged Pull Requests, analyzes them using LLM technology, and publishes insightful reports to your preferred platform. This tool helps teams stay informed about code changes, understand the impact of PRs, and maintain a comprehensive changelog with minimal manual effort.
+PRhythm is an automated tool that monitors GitHub repositories for merged Pull Requests, analyzes them using LLM technology, and generates insightful reports. This tool helps teams stay informed about code changes and understand the impact of PRs with minimal manual effort.
 
 ## Features
 
 - **Automated PR Monitoring**: Periodically checks specified GitHub repositories for newly merged PRs
 - **Comprehensive PR Data Collection**: Gathers PR title, number, description, code diffs, and other relevant information
 - **Intelligent Analysis**: Leverages LLM APIs (OpenAI, DeepSeek, etc.) to analyze PR content and generate meaningful reports
-- **Flexible Publishing Options**: Publishes analysis reports to platforms like Notion, custom blogs, or other documentation systems
 - **PR Synchronization Tracking**: Tracks which PRs have been processed and identifies unsynchronized PRs
 - **Multi-language Support**: Generate analysis reports in different languages (English, Chinese, etc.)
 
@@ -133,6 +132,10 @@ llm:
     deepseek:
       base_url: "https://api.deepseek.com"
       model: "deepseek-reasoner"  # Available models: deepseek-chat, deepseek-reasoner
+
+# Output configuration
+output:
+  language: "en"  # Output language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
 ```
 
 ### 2. Manually Running Individual Steps
