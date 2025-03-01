@@ -435,6 +435,93 @@ def format_module_context(module_context):
     
     return "\n\n".join(formatted_sections)
 
+def format_modified_file_contents(pr_data):
+    """
+    Format the content of modified files for inclusion in the prompt
+    
+    Args:
+        pr_data: PR data containing modified file contents
+        
+    Returns:
+        str: Formatted modified file contents in markdown format
+    """
+    modified_file_contents = pr_data.get('modified_file_contents', {})
+    
+    if not modified_file_contents:
+        return "No modified file contents available."
+    
+    # Sort files by path for consistent output
+    sorted_files = sorted(modified_file_contents.items())
+    
+    # Limit the number of files to include (max 10 files)
+    max_files = 10
+    if len(sorted_files) > max_files:
+        sorted_files = sorted_files[:max_files]
+        
+    # Set a total character limit for all file contents combined
+    total_char_limit = 30000
+    current_total = 0
+    
+    formatted_sections = []
+    
+    for file_path, content in sorted_files:
+        # Determine language for syntax highlighting
+        extension = file_path.split('.')[-1] if '.' in file_path else ''
+        language = ''
+        
+        if extension in ['py', 'python']:
+            language = 'python'
+        elif extension in ['js', 'javascript']:
+            language = 'javascript'
+        elif extension in ['ts', 'typescript']:
+            language = 'typescript'
+        elif extension in ['java']:
+            language = 'java'
+        elif extension in ['c', 'cpp', 'h', 'hpp']:
+            language = 'cpp'
+        elif extension in ['go']:
+            language = 'go'
+        elif extension in ['rs']:
+            language = 'rust'
+        elif extension in ['html']:
+            language = 'html'
+        elif extension in ['css']:
+            language = 'css'
+        elif extension in ['json']:
+            language = 'json'
+        elif extension in ['yaml', 'yml']:
+            language = 'yaml'
+        elif extension in ['md', 'markdown']:
+            language = 'markdown'
+        elif extension in ['sh', 'bash']:
+            language = 'bash'
+        
+        # Set a character limit per file (3000 characters)
+        char_limit_per_file = 3000
+        
+        # If content is too large, truncate it
+        if len(content) > char_limit_per_file:
+            content = content[:char_limit_per_file] + "\n...\n[content truncated]"
+        
+        # Check if adding this file would exceed the total character limit
+        if current_total + len(content) > total_char_limit:
+            # If we already have some files, just stop adding more
+            if formatted_sections:
+                formatted_sections.append("\n### [Additional files omitted due to size constraints]")
+                break
+            else:
+                # If this is the first file, truncate it further to fit within limits
+                content = content[:total_char_limit - 100] + "\n...\n[content severely truncated]"
+        
+        # Format the section
+        section = f"### File: `{file_path}`\n\n```{language}\n{content}\n```\n"
+        formatted_sections.append(section)
+        
+        # Update the total character count
+        current_total += len(content)
+    
+    return "\n".join(formatted_sections)
+
 def prepare_prompt(pr_data, prompt_template, output_language):
     """
     Prepare the prompt for LLM API
@@ -462,6 +549,9 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     learning_points = identify_learning_points(pr_data)
     module_context_summary = format_module_context(pr_data['module_context'])
     
+    # Format modified file contents
+    modified_file_contents = format_modified_file_contents(pr_data)
+    
     # Ensure only PR description is used, not comments
     # If comments or reviews fields exist, set them to empty lists
     if 'comments' in pr_data:
@@ -481,6 +571,7 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         'impact_matrix': impact_matrix,
         'learning_points': learning_points,
         'module_context_summary': module_context_summary,
+        'modified_file_contents': modified_file_contents,
         'len': len  # Include len function for use in the template
     }
     
@@ -519,6 +610,7 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     prompt = prompt.replace("{impact_matrix}", impact_matrix)
     prompt = prompt.replace("{learning_points}", learning_points)
     prompt = prompt.replace("{module_context_summary}", module_context_summary)
+    prompt = prompt.replace("{modified_file_contents}", modified_file_contents)
     
     # Replace simple variable references
     for key in pr_data:
@@ -715,14 +807,37 @@ def call_openai_compatible_api(prompt, api_key, model, base_url, temperature, co
     # Calculate complexity and get recommended parameters
     complexity_params = calculate_pr_complexity(pr_data)
     
+    # Calculate prompt length to adjust max_tokens
+    prompt_length = len(prompt)
+    
+    # Dynamically adjust max_tokens based on prompt length
+    # The longer the prompt, the more tokens we need for the response
+    base_max_tokens = complexity_params.get('max_tokens', 4000)
+    
+    # Adjust max_tokens based on prompt length
+    if prompt_length > 100000:
+        max_tokens = min(16000, int(base_max_tokens * 2))  # Double the tokens for very large prompts
+    elif prompt_length > 50000:
+        max_tokens = min(12000, int(base_max_tokens * 1.5))  # 1.5x tokens for large prompts
+    elif prompt_length > 20000:
+        max_tokens = min(8000, int(base_max_tokens * 1.2))  # 1.2x tokens for medium prompts
+    else:
+        max_tokens = base_max_tokens  # Use base tokens for small prompts
+    
+    # Ensure max_tokens doesn't exceed model limits
+    if model.startswith('gpt-4'):
+        max_tokens = min(max_tokens, 16000)  # GPT-4 limit
+    elif model.startswith('gpt-3.5'):
+        max_tokens = min(max_tokens, 4000)  # GPT-3.5 limit
+    
     # Override default parameters with complexity-based ones
-    max_tokens = complexity_params.get('max_tokens', 4000)
     temperature = complexity_params.get('temperature', temperature)
     top_p = complexity_params.get('top_p', 0.95)
     frequency_penalty = complexity_params.get('frequency_penalty', 0.0)
     
     # Print complexity information
     print(f"PR Complexity Score: {complexity_params.get('complexity_score', 'N/A')}")
+    print(f"Prompt Length: {prompt_length} characters")
     print(f"Using parameters: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
     
     data = {

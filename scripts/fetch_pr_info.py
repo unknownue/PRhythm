@@ -454,6 +454,52 @@ def fetch_repo_content(repo, pr_number, repo_path=None):
         print(f"Error: Failed to use existing repository at {default_repo_path}: {e}")
         sys.exit(1)
 
+def fetch_modified_file_contents(pr_data, repo_path):
+    """
+    Fetch the content of modified files to provide as code background
+    
+    Args:
+        pr_data: PR data containing file information
+        repo_path: Path to local repository clone
+        
+    Returns:
+        dict: Dictionary mapping file paths to their content
+    """
+    file_contents = {}
+    
+    # Get list of modified files
+    files = pr_data.get('files', [])
+    
+    for file in files:
+        # Get file path
+        file_path = file.get('filename', file.get('path', ''))
+        if not file_path:
+            continue
+            
+        # Skip binary files, large files, and certain file types
+        if file_path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.ttf', '.eot', '.bin', '.exe', '.dll', '.so', '.dylib')):
+            continue
+            
+        # Get file content from local repository
+        try:
+            full_path = Path(repo_path) / file_path
+            if full_path.exists() and full_path.is_file():
+                # Check file size - skip if too large
+                if full_path.stat().st_size > 100 * 1024:  # Skip files larger than 100KB
+                    file_contents[file_path] = "File too large to include in context"
+                    continue
+                    
+                # Read file content
+                with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+                    file_contents[file_path] = content
+            else:
+                file_contents[file_path] = "File not found in repository"
+        except Exception as e:
+            file_contents[file_path] = f"Error reading file: {str(e)}"
+    
+    return file_contents
+
 def main():
     """Main function"""
     # Parse command line arguments
@@ -485,6 +531,10 @@ def main():
     print(f"Fetching module context using repository at {repo_path}...")
     pr_data['module_context'] = fetch_module_context(pr_data, repo_path)
     
+    # Fetch modified file contents and add to PR data
+    print("Fetching modified file contents...")
+    pr_data['modified_file_contents'] = fetch_modified_file_contents(pr_data, repo_path)
+    
     # No need to clean up temporary directory as we're using existing repos
     
     # Analyze key commits and add to PR data
@@ -501,8 +551,10 @@ def main():
     
     # Print summary of fetched data
     num_files = len(pr_data.get('files', []))
+    num_modified_files_with_content = len(pr_data.get('modified_file_contents', {}))
     
     print(f"Fetched {num_files} files")
+    print(f"Fetched content for {num_modified_files_with_content} modified files")
 
 if __name__ == "__main__":
     main() 
