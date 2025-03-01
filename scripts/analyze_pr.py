@@ -902,13 +902,17 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     repo = pr_data.get('repository', 'unknown')
     repo_name = repo.split('/')[-1]
     
+    # Get current date for month-based directory
+    current_date = datetime.now()
+    month_dir = current_date.strftime('%Y-%m')  # Format: YYYY-MM
+    
     # Create repository-specific directory
-    repo_output_dir = output_dir / repo_name
+    repo_output_dir = output_dir / repo_name / month_dir
     repo_output_dir.mkdir(exist_ok=True, parents=True)
     
     # Create a filename
     pr_number = pr_data.get('number', 'unknown')
-    filename = f"pr_{pr_number}_{output_language}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    filename = f"pr_{pr_number}_{output_language}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
     file_path = repo_output_dir / filename
     
     try:
@@ -922,13 +926,52 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Analyze PR information using LLM API')
-    parser.add_argument('--json', required=True, help='Path to the PR JSON file')
+    parser.add_argument('--json', help='Path to the PR JSON file')
+    parser.add_argument('--repo', help='Repository name (owner/repo) - used to find the latest PR JSON file if --json is not specified')
+    parser.add_argument('--pr', type=int, help='PR number - used to find the latest PR JSON file if --json is not specified')
     parser.add_argument('--language', default='en', help='Output language (e.g., en, zh-cn)')
     parser.add_argument('--config', default='config.yaml', help='Path to the configuration file')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
     parser.add_argument('--dry-run', action='store_true', help='Only print the prompt without sending the request')
     parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
     return parser.parse_args()
+
+def find_latest_pr_json(project_root, repo, pr_number):
+    """
+    Find the latest PR JSON file for a given repository and PR number
+    
+    Args:
+        project_root: Project root directory
+        repo: Repository name (owner/repo)
+        pr_number: PR number
+        
+    Returns:
+        Path: Path to the latest PR JSON file, or None if not found
+    """
+    # Extract repo name from owner/repo format
+    repo_name = repo.split('/')[-1]
+    
+    # Base output directory for fetch_pr_info.py
+    output_dir = project_root / "output" / repo_name
+    
+    if not output_dir.exists():
+        return None
+    
+    # Find all month directories
+    month_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()], reverse=True)
+    
+    # Search for PR JSON files in each month directory
+    for month_dir in month_dirs:
+        # Find all JSON files for the specified PR
+        pr_files = list(month_dir.glob(f"pr_{pr_number}_*.json"))
+        
+        # Sort by modification time (newest first)
+        pr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        if pr_files:
+            return pr_files[0]
+    
+    return None
 
 def main():
     """Main function"""
@@ -943,10 +986,27 @@ def main():
     config_path = project_root / args.config
     config = read_config(config_path)
     
+    # Determine JSON file path
+    json_file_path = None
+    
+    if args.json:
+        # User specified a JSON file path
+        json_file_path = Path(args.json)
+        if not json_file_path.is_absolute():
+            json_file_path = project_root / json_file_path
+    elif args.repo and args.pr:
+        # Try to find the latest PR JSON file
+        json_file_path = find_latest_pr_json(project_root, args.repo, args.pr)
+        if not json_file_path:
+            print(f"Error: Could not find PR JSON file for repository {args.repo} and PR #{args.pr}")
+            print("Please run fetch_pr_info.py first or specify the JSON file path using --json")
+            sys.exit(1)
+        print(f"Using latest PR JSON file: {json_file_path}")
+    else:
+        print("Error: Either --json or both --repo and --pr must be specified")
+        sys.exit(1)
+    
     # Read PR data
-    json_file_path = Path(args.json)
-    if not json_file_path.is_absolute():
-        json_file_path = project_root / json_file_path
     pr_data = read_pr_data(json_file_path)
     
     # Check if module context is already in PR data

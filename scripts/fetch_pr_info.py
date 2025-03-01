@@ -33,9 +33,12 @@ def ensure_output_dir(project_root, repo):
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
     
-    # Create repository-specific directory
-    repo_output_dir = output_dir / repo_name
-    repo_output_dir.mkdir(exist_ok=True)
+    # Get current date for month-based directory
+    month_dir = datetime.now().strftime('%Y-%m')  # Format: YYYY-MM
+    
+    # Create repository-specific directory with month subdirectory
+    repo_output_dir = output_dir / repo_name / month_dir
+    repo_output_dir.mkdir(exist_ok=True, parents=True)
     
     return repo_output_dir
 
@@ -121,8 +124,11 @@ def save_pr_info(output_dir, repo, pr_number, pr_data):
     Returns:
         Path: Path to the saved file
     """
+    # Get current date for consistent timestamp
+    current_date = datetime.now()
+    
     # Create a filename without the repo part since it's already in the directory structure
-    filename = f"pr_{pr_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    filename = f"pr_{pr_number}_{current_date.strftime('%Y%m%d_%H%M%S')}.json"
     file_path = output_dir / filename
     
     try:
