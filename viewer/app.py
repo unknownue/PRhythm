@@ -21,7 +21,13 @@ import re
 app = Flask(__name__)
 
 # Path to the analysis directory
-ANALYSIS_DIR = '/app/analysis'  # Path inside Docker container
+ANALYSIS_DIR = os.environ.get('ANALYSIS_DIR', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'analysis'))
+
+# Check if we're running in Docker
+if os.path.exists('/app/analysis'):
+    ANALYSIS_DIR = '/app/analysis'
+
+print(f"Using analysis directory: {ANALYSIS_DIR}")
 
 # Load configuration
 def load_config():
@@ -109,13 +115,18 @@ def index():
                 # Format the modification time
                 mod_time_str = datetime.datetime.fromtimestamp(mod_time).strftime('%Y-%m-%d %H:%M:%S')
                 
-                # Get repository name from path
-                repo_name = rel_path.split('/')[0] if '/' in rel_path else 'unknown'
+                # Parse path components
+                path_parts = rel_path.split('/')
+                
+                # Get repository name and month from path
+                repo_name = path_parts[0] if len(path_parts) > 0 else 'unknown'
+                month_dir = path_parts[1] if len(path_parts) > 1 and re.match(r'\d{4}-\d{2}', path_parts[1]) else None
                 
                 files.append({
                     'path': rel_path,
                     'name': filename,
                     'repo': repo_name,
+                    'month': month_dir,
                     'modified': mod_time,
                     'modified_str': mod_time_str
                 })
@@ -123,7 +134,21 @@ def index():
     # Sort files by modification time (newest first)
     files.sort(key=lambda x: x['modified'], reverse=True)
     
-    return render_template('index.html', files=files)
+    # Group files by repository and month
+    repos = {}
+    for file in files:
+        repo = file['repo']
+        month = file['month'] or 'other'
+        
+        if repo not in repos:
+            repos[repo] = {}
+        
+        if month not in repos[repo]:
+            repos[repo][month] = []
+            
+        repos[repo][month].append(file)
+    
+    return render_template('index.html', files=files, repos=repos, grouped=True)
 
 @app.route('/view/<path:file_path>')
 def view_file(file_path):

@@ -60,6 +60,15 @@ fi
 # Allow override via environment variable
 export VIEWER_PORT=${VIEWER_PORT:-$PORT}
 
+# Set analysis directory path
+if [ -z "$ANALYSIS_DIR" ]; then
+    # Default to project root/analysis
+    export ANALYSIS_DIR="$(cd .. && pwd)/analysis"
+    echo "Using default analysis directory: $ANALYSIS_DIR"
+else
+    echo "Using specified analysis directory: $ANALYSIS_DIR"
+fi
+
 # Start the Flask application
 echo "Starting Markdown viewer on http://localhost:${VIEWER_PORT}"
 python app.py 

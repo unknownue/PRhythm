@@ -40,6 +40,51 @@
             font-size: 12px;
             margin-right: 10px;
         }
+        .month-tag {
+            display: inline-block;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .repo-section {
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+        .repo-header {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .month-section {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #ffffff;
+            border-radius: 6px;
+        }
+        .month-header {
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #dee2e6;
+            color: #2e7d32;
+        }
+        .toggle-button {
+            background-color: #f1f8e9;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-size: 12px;
+        }
+        .toggle-button:hover {
+            background-color: #dcedc8;
+        }
     </style>
 </head>
 <body>
@@ -53,18 +98,66 @@
             <div class="file-list">
                 {% if files %}
                     <h2>Available Reports ({{ files|length }})</h2>
-                    {% for file in files %}
-                        <div class="file-item">
-                            <div class="file-name">
-                                <a href="/view/{{ file.path }}">{{ file.name }}</a>
+                    
+                    {% if grouped %}
+                        {% for repo_name, months in repos.items() %}
+                            <div class="repo-section">
+                                <div class="repo-header">
+                                    <h3>Repository: {{ repo_name }}</h3>
+                                </div>
+                                
+                                {% for month_name, month_files in months.items() %}
+                                    <div class="month-section">
+                                        <div class="month-header">
+                                            <h4>
+                                                {% if month_name == 'other' %}
+                                                    Other Files
+                                                {% else %}
+                                                    Month: {{ month_name }}
+                                                {% endif %}
+                                                <span>({{ month_files|length }} files)</span>
+                                                <button class="toggle-button" onclick="toggleMonthFiles(this)">Hide</button>
+                                            </h4>
+                                        </div>
+                                        
+                                        <div class="month-files">
+                                            {% for file in month_files %}
+                                                <div class="file-item">
+                                                    <div class="file-name">
+                                                        <a href="/view/{{ file.path }}">{{ file.name }}</a>
+                                                    </div>
+                                                    <div class="file-meta">
+                                                        <span class="repo-tag">{{ file.repo }}</span>
+                                                        {% if file.month %}
+                                                            <span class="month-tag">{{ file.month }}</span>
+                                                        {% endif %}
+                                                        <span class="file-path">{{ file.path }}</span>
+                                                        <span class="file-date">Last modified: {{ file.modified_str }}</span>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
                             </div>
-                            <div class="file-meta">
-                                <span class="repo-tag">{{ file.repo }}</span>
-                                <span class="file-path">{{ file.path }}</span>
-                                <span class="file-date">Last modified: {{ file.modified_str }}</span>
+                        {% endfor %}
+                    {% else %}
+                        {% for file in files %}
+                            <div class="file-item">
+                                <div class="file-name">
+                                    <a href="/view/{{ file.path }}">{{ file.name }}</a>
+                                </div>
+                                <div class="file-meta">
+                                    <span class="repo-tag">{{ file.repo }}</span>
+                                    {% if file.month %}
+                                        <span class="month-tag">{{ file.month }}</span>
+                                    {% endif %}
+                                    <span class="file-path">{{ file.path }}</span>
+                                    <span class="file-date">Last modified: {{ file.modified_str }}</span>
+                                </div>
                             </div>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
+                    {% endif %}
                 {% else %}
                     <div class="empty-state">
                         <h2>No Reports Found</h2>
@@ -78,5 +171,18 @@
             <p>PRhythm Markdown Viewer - A simple tool to view PR analysis reports</p>
         </footer>
     </div>
+    
+    <script>
+        function toggleMonthFiles(button) {
+            const monthSection = button.closest('.month-header').nextElementSibling;
+            if (monthSection.style.display === 'none') {
+                monthSection.style.display = 'block';
+                button.textContent = 'Hide';
+            } else {
+                monthSection.style.display = 'none';
+                button.textContent = 'Show';
+            }
+        }
+    </script>
 </body>
 </html> 
