@@ -20,53 +20,44 @@ Original description:
 {pr_data['body']}
 ```
 
-### 3. Technical Analysis
-Perform deep analysis of:
+### 3. Module Context and Structure
+{module_context_summary}
+
+### 4. Architecture Context and Module Impact
+{architecture_context}
+
+### 5. Key Commits Analysis
+{commit_analysis}
+
+### 6. Code Changes with References
+{code_references}
+
+### 7. Technical Impact Analysis
 - **Code Changes**: 
   - Identify key file modifications with specific code patterns or algorithms changed
   - Explain technical rationale behind changes with concrete examples
-  - Analyze code quality improvements or potential issues
   - Total files changed: {len(pr_data['files'])}
   - Total commits: {len(pr_data['commits'])}
 - **Impact Assessment**:
   - Affected modules/components with dependency analysis
-  - Potential side effects/regression risks with severity ratings (High/Medium/Low)
-  - Performance implications (if applicable)
-- **Contextual Insights**:
-  - Connections to existing technical debt with specific references
-  - Optimization opportunities with concrete suggestions
-  - Design pattern usage or architectural implications
+  - Potential side effects with concrete examples from the code
+  - Performance implications with specific code patterns
 
-### 4. Knowledge Context
-- **Background Links**:
-  - Related design docs/RFCs
-  - Previous relevant PRs/issues with brief descriptions
-  - External resources that provide context
-- **Reference Materials**:
-  - Framework documentation links
-  - Architecture diagrams (if applicable)
-  - Best practices relevant to this change
+### 8. Code Impact Matrix
+| File Path | Changes | Functionality | Module | Risk Level |
+|-----------|---------|---------------|--------|------------|
+{impact_matrix}
 
-### 5. Review Summary
-- **Reviews**: {len(pr_data['reviews'])} reviews
-- **Comments**: {len(pr_data['comments'])} comments
-- **Key Discussion Points**: 
-  - Summarize important discussions from reviews and comments
-  - Highlight unresolved questions or concerns
-  - Note consensus points among reviewers
+### 9. Learning Points and Study Guide
+{learning_points}
 
-### 6. File Changes Overview
+### 10. File Changes Overview
 List the top 5 most significant files changed (by additions + deletions):
 {file_changes_summary}
 
-### 7. Visual Representation
-Create at least one of the following visualizations using markdown or ASCII:
-- A simple architecture diagram showing affected components
-- A flowchart representing the logic changes
-- A before/after comparison table for important API changes
-- A dependency graph showing impacted modules
+### 11. Visual Representation
+Create a simple ASCII diagram showing the relationship between the modified components and their dependencies based on the module context. For example:
 
-Example ASCII flowchart:
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │ Component A │────>│ Component B │────>│ Component C │
@@ -81,9 +72,10 @@ Example ASCII flowchart:
 **Output Format**: Markdown with technical depth
 **Tone**: Professional/neutral
 **Note**: 
-- Highlight critical security/compatibility issues in bold
+- Focus on technical implementation details and learning value
 - Prioritize depth over breadth in your analysis
-- Focus on the most important aspects rather than trying to cover everything superficially
+- Include specific code examples with line references when possible
 - When uncertain about technical details, acknowledge limitations rather than speculating
+- Use the module context to provide deeper insights into how the changes affect the codebase
 
-Respond with a comprehensive, well-structured analysis that would be valuable to both the PR author and reviewers.
+Respond with a comprehensive, well-structured analysis that would be valuable for learning and understanding the technical changes.

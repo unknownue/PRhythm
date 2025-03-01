@@ -13,6 +13,8 @@ import os
 import argparse
 import requests
 import yaml
+import re
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -105,6 +107,334 @@ def prepare_file_changes_summary(pr_data):
     
     return "\n".join(summary_lines)
 
+def generate_architecture_context(pr_data):
+    """
+    Generate architecture context based on PR data
+    
+    Args:
+        pr_data: PR data
+        
+    Returns:
+        str: Architecture context
+    """
+    # Extract file paths to understand project structure
+    file_paths = [file.get('filename', file.get('path', '')) for file in pr_data.get('files', [])]
+    
+    # Group files by directory to identify modules
+    modules = {}
+    for path in file_paths:
+        if not path:
+            continue
+        parts = path.split('/')
+        if len(parts) > 1:
+            module = parts[0]
+            if module not in modules:
+                modules[module] = []
+            modules[module].append(path)
+    
+    # Generate module summary
+    module_summary = []
+    for module, files in modules.items():
+        module_summary.append(f"- **{module}**: {len(files)} files modified")
+    
+    # If no modules identified, provide a generic message
+    if not module_summary:
+        return "No clear module structure identified from the PR changes."
+    
+    return "The PR affects the following modules:\n" + "\n".join(module_summary)
+
+def analyze_key_commits(pr_data):
+    """
+    Analyze key commits in the PR
+    
+    Args:
+        pr_data: PR data
+        
+    Returns:
+        str: Key commit analysis
+    """
+    # This function has been moved to fetch_pr_info.py
+    # Return the pre-computed analysis if available
+    if 'commit_analysis' in pr_data:
+        return pr_data['commit_analysis']
+    
+    # For backward compatibility, return a warning message if commit_analysis is not available
+    return "Commit analysis not available. Please run fetch_pr_info.py first to generate commit analysis."
+
+def format_code_references(pr_data):
+    """
+    Format code references from PR diff
+    
+    Args:
+        pr_data: PR data
+        
+    Returns:
+        str: Formatted code references
+    """
+    diff = pr_data.get('diff', '')
+    if not diff:
+        return "No code diff available."
+    
+    # Extract code snippets from diff
+    snippets = []
+    current_file = None
+    current_section = []
+    section_header = None
+    
+    for line in diff.split('\n'):
+        if line.startswith('diff --git'):
+            # Save previous section if exists
+            if current_file and current_section:
+                snippets.append({
+                    'file': current_file,
+                    'header': section_header,
+                    'code': '\n'.join(current_section)
+                })
+                current_section = []
+            
+            # Extract new file name
+            parts = line.split()
+            if len(parts) >= 3:
+                current_file = parts[-1][2:]  # Remove 'b/' prefix
+        
+        elif line.startswith('@@'):
+            # Save previous section if exists
+            if current_file and current_section:
+                snippets.append({
+                    'file': current_file,
+                    'header': section_header,
+                    'code': '\n'.join(current_section)
+                })
+                current_section = []
+            
+            # Extract line numbers
+            section_header = line
+        
+        elif current_file and section_header:
+            # Add line to current section
+            if line.startswith('+') or line.startswith('-'):
+                current_section.append(line)
+    
+    # Add the last section if exists
+    if current_file and current_section:
+        snippets.append({
+            'file': current_file,
+            'header': section_header,
+            'code': '\n'.join(current_section)
+        })
+    
+    # Format snippets (limit to top 3 most significant)
+    formatted_snippets = []
+    for i, snippet in enumerate(snippets[:3]):
+        formatted_snippets.append(f"**Code Snippet {i+1}** - `{snippet['file']}` {snippet['header']}:\n```\n{snippet['code']}\n```")
+    
+    if not formatted_snippets:
+        return "No significant code changes identified."
+    
+    return "\n\n".join(formatted_snippets)
+
+def generate_impact_matrix(pr_data):
+    """
+    Generate code impact matrix
+    
+    Args:
+        pr_data: PR data
+        
+    Returns:
+        str: Impact matrix in markdown table format
+    """
+    files = pr_data.get('files', [])
+    if not files:
+        return "| No files changed | - | - | - | - |"
+    
+    # Sort files by impact (additions + deletions)
+    sorted_files = sorted(
+        files, 
+        key=lambda x: x.get('additions', 0) + x.get('deletions', 0), 
+        reverse=True
+    )
+    
+    # Take top 5 files for analysis
+    top_files = sorted_files[:5]
+    
+    # Generate matrix rows
+    rows = []
+    for file in top_files:
+        filename = file.get('filename', file.get('path', 'Unknown file'))
+        additions = file.get('additions', 0)
+        deletions = file.get('deletions', 0)
+        
+        # Analyze file impact
+        impact = analyze_file_impact(filename, additions, deletions, pr_data)
+        
+        rows.append(f"| `{filename}` | +{additions}/-{deletions} | {impact['functionality']} | {impact['modules']} | {impact['risk']} |")
+    
+    return "\n".join(rows)
+
+def analyze_file_impact(filename, additions, deletions, pr_data):
+    """
+    Analyze the impact of changes to a specific file
+    
+    Args:
+        filename: File name
+        additions: Number of lines added
+        deletions: Number of lines deleted
+        pr_data: PR data
+        
+    Returns:
+        dict: Impact analysis with functionality, modules, and risk
+    """
+    # Default impact analysis
+    impact = {
+        'functionality': 'Unknown',
+        'modules': 'Unknown',
+        'risk': 'Low'
+    }
+    
+    # Determine file type and potential functionality
+    if filename.endswith('.py'):
+        impact['functionality'] = 'Python Logic'
+    elif filename.endswith('.js') or filename.endswith('.ts'):
+        impact['functionality'] = 'Frontend Logic'
+    elif filename.endswith('.html') or filename.endswith('.css'):
+        impact['functionality'] = 'UI/Presentation'
+    elif filename.endswith('.md') or filename.endswith('.txt'):
+        impact['functionality'] = 'Documentation'
+    elif filename.endswith('.json') or filename.endswith('.yaml') or filename.endswith('.yml'):
+        impact['functionality'] = 'Configuration'
+    elif filename.endswith('.sql'):
+        impact['functionality'] = 'Database'
+    elif filename.endswith('.sh'):
+        impact['functionality'] = 'Build/Deployment'
+    
+    # Determine module based on directory structure
+    parts = filename.split('/')
+    if len(parts) > 1:
+        impact['modules'] = parts[0]
+    
+    # Determine risk based on changes
+    total_changes = additions + deletions
+    if total_changes > 100:
+        impact['risk'] = 'High'
+    elif total_changes > 30:
+        impact['risk'] = 'Medium'
+    else:
+        impact['risk'] = 'Low'
+    
+    # Adjust risk based on file type
+    if 'test' in filename.lower():
+        impact['risk'] = 'Low'  # Test changes are generally lower risk
+    elif 'core' in filename.lower() or 'main' in filename.lower():
+        impact['risk'] = 'High'  # Core functionality changes are higher risk
+    
+    return impact
+
+def identify_learning_points(pr_data):
+    """
+    Identify key learning points from the PR
+    
+    Args:
+        pr_data: PR data
+        
+    Returns:
+        str: Learning points in markdown format
+    """
+    # Extract key information
+    files = pr_data.get('files', [])
+    
+    if not files:
+        return "No files changed, no learning points identified."
+    
+    # Identify most significant file
+    sorted_files = sorted(
+        files, 
+        key=lambda x: x.get('additions', 0) + x.get('deletions', 0), 
+        reverse=True
+    )
+    main_file = sorted_files[0]
+    main_filename = main_file.get('filename', main_file.get('path', 'Unknown file'))
+    
+    # Identify potential patterns based on file types
+    patterns = []
+    
+    # Check file extensions to guess patterns
+    if any(file.get('filename', '').endswith(('.py', '.js', '.ts', '.java', '.c', '.cpp')) for file in files):
+        patterns.append("Implementation techniques")
+    
+    if any(file.get('filename', '').endswith(('test.py', 'test.js', 'Test.java', '_test.go')) for file in files):
+        patterns.append("Testing strategies")
+    
+    if any(file.get('filename', '').endswith(('.md', '.txt', '.rst', '.adoc')) for file in files):
+        patterns.append("Documentation practices")
+    
+    if not patterns:
+        patterns.append("Implementation techniques")
+    
+    # Generate learning path
+    learning_path = [
+        f"1. Start by understanding the purpose of `{main_filename}`",
+        f"2. Examine the changes to identify the {patterns[0]} used",
+        "3. Look for related test files to understand validation approach"
+    ]
+    
+    # Format output
+    output = [
+        "## Key Learning Points",
+        "",
+        f"- **Main File**: `{main_filename}` (+{main_file.get('additions', 0)}/-{main_file.get('deletions', 0)})",
+        f"- **Technical Concepts**: {', '.join(patterns)}",
+        "",
+        "## Suggested Learning Path",
+        "",
+        "\n".join(learning_path)
+    ]
+    
+    return "\n".join(output)
+
+def format_module_context(module_context):
+    """
+    Format module context for inclusion in the prompt
+    
+    Args:
+        module_context: Module context information
+        
+    Returns:
+        str: Formatted module context
+    """
+    # This function has been moved to fetch_pr_info.py
+    # Return the pre-computed module context if available
+    if not module_context or not module_context.get('modules'):
+        return "No module context available."
+    
+    formatted_sections = []
+    
+    for module_name, module_data in module_context.get('modules', {}).items():
+        section = [f"### Module: {module_name}"]
+        
+        # Add structure information
+        structure = module_data.get('structure', {})
+        if structure:
+            if structure.get('classes'):
+                section.append(f"**Classes**: {', '.join(structure.get('classes', []))}")
+            if structure.get('functions'):
+                section.append(f"**Functions**: {', '.join(structure.get('functions', []))}")
+            if structure.get('imports'):
+                section.append(f"**Dependencies**: {', '.join(structure.get('imports', []))}")
+        
+        # Add key file snippets (limited to keep prompt size reasonable)
+        key_files = module_data.get('key_files', {})
+        if key_files:
+            section.append("\n**Key Files:**")
+            for file_path, content in list(key_files.items())[:2]:  # Limit to 2 files
+                # Truncate content if too long
+                if len(content) > 500:
+                    content = content[:500] + "...\n[content truncated]"
+                section.append(f"\n`{file_path}`:\n```\n{content}\n```")
+        
+        formatted_sections.append("\n".join(section))
+    
+    return "\n\n".join(formatted_sections)
+
 def prepare_prompt(pr_data, prompt_template, output_language):
     """
     Prepare the prompt for LLM API
@@ -120,11 +450,37 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     # Prepare file changes summary
     file_changes_summary = prepare_file_changes_summary(pr_data)
     
+    # Fetch module context if not already present
+    if 'module_context' not in pr_data:
+        pr_data['module_context'] = fetch_module_context(pr_data)
+    
+    # Generate new enhanced context elements
+    architecture_context = generate_architecture_context(pr_data)
+    commit_analysis = analyze_key_commits(pr_data)
+    code_references = format_code_references(pr_data)
+    impact_matrix = generate_impact_matrix(pr_data)
+    learning_points = identify_learning_points(pr_data)
+    module_context_summary = format_module_context(pr_data['module_context'])
+    
+    # Ensure only PR description is used, not comments
+    # If comments or reviews fields exist, set them to empty lists
+    if 'comments' in pr_data:
+        pr_data['comments'] = []
+    
+    if 'reviews' in pr_data:
+        pr_data['reviews'] = []
+    
     # Create a context dictionary with all variables needed for the prompt
     context = {
         'pr_data': pr_data,
         'output_language': output_language,
         'file_changes_summary': file_changes_summary,
+        'architecture_context': architecture_context,
+        'commit_analysis': commit_analysis,
+        'code_references': code_references,
+        'impact_matrix': impact_matrix,
+        'learning_points': learning_points,
+        'module_context_summary': module_context_summary,
         'len': len  # Include len function for use in the template
     }
     
@@ -155,6 +511,14 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     else:
         replacement = "N/A"
     prompt = prompt.replace(merged_by_pattern, replacement)
+    
+    # Replace new context variables
+    prompt = prompt.replace("{architecture_context}", architecture_context)
+    prompt = prompt.replace("{commit_analysis}", commit_analysis)
+    prompt = prompt.replace("{code_references}", code_references)
+    prompt = prompt.replace("{impact_matrix}", impact_matrix)
+    prompt = prompt.replace("{learning_points}", learning_points)
+    prompt = prompt.replace("{module_context_summary}", module_context_summary)
     
     # Replace simple variable references
     for key in pr_data:
@@ -218,16 +582,7 @@ def calculate_pr_complexity(pr_data):
     elif total_lines_changed > 100:
         complexity += 1
     
-    # Factor 3: Number of comments (indicates discussion complexity)
-    comments = len(pr_data.get('comments', []))
-    if comments > 20:
-        complexity += 3
-    elif comments > 10:
-        complexity += 2
-    elif comments > 5:
-        complexity += 1
-    
-    # Factor 4: Description length
+    # Factor 3: Description length
     description_length = len(pr_data.get('body', '')) if pr_data.get('body') else 0
     if description_length > 2000:
         complexity += 2
@@ -236,22 +591,22 @@ def calculate_pr_complexity(pr_data):
     
     # Calculate recommended parameters based on complexity
     max_tokens = 4000  # Default
-    if complexity >= 8:
+    if complexity >= 6:
         max_tokens = 8000
-    elif complexity >= 5:
+    elif complexity >= 3:
         max_tokens = 6000
     
     temperature = 0.3  # Default
-    if complexity >= 8:
+    if complexity >= 6:
         temperature = 0.2  # More deterministic for complex PRs
     elif complexity <= 2:
         temperature = 0.4  # More creative for simple PRs
     
     # Calculate top_p based on complexity
-    top_p = 0.95 if complexity >= 5 else 0.9
+    top_p = 0.95 if complexity >= 3 else 0.9
     
     # Calculate frequency_penalty based on complexity
-    frequency_penalty = 0.1 if complexity >= 5 else 0.0
+    frequency_penalty = 0.1 if complexity >= 3 else 0.0
     
     return {
         'complexity_score': complexity,
@@ -300,7 +655,7 @@ def call_llm_api(prompt, config, provider=None):
     
     # Get model from provider config or fall back to default
     model = provider_config.get('model', config.get('llm', {}).get('model', 'gpt-4'))
-    
+
     # Get base URL from provider config
     base_url = provider_config.get('base_url', '')
     if not base_url:
@@ -457,6 +812,7 @@ def parse_arguments():
     parser.add_argument('--config', default='config.yaml', help='Path to the configuration file')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
     parser.add_argument('--dry-run', action='store_true', help='Only print the prompt without sending the request')
+    parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
     return parser.parse_args()
 
 def main():
@@ -477,6 +833,20 @@ def main():
     if not json_file_path.is_absolute():
         json_file_path = project_root / json_file_path
     pr_data = read_pr_data(json_file_path)
+    
+    # Check if module context is already in PR data
+    if 'module_context' not in pr_data:
+        print("Warning: Module context not found in PR data. Please run fetch_pr_info.py first.")
+        print("Continuing with limited context...")
+    else:
+        print(f"Using pre-computed module context for {len(pr_data['module_context'].get('modules', {}))} modules")
+    
+    # Check if commit analysis is already in PR data
+    if 'commit_analysis' not in pr_data:
+        print("Warning: Commit analysis not found in PR data. Please run fetch_pr_info.py first.")
+        print("Continuing with limited analysis...")
+    else:
+        print("Using pre-computed commit analysis")
     
     # Read prompt template
     prompt_path = project_root / "prompt" / "analyze_pr.prompt"
