@@ -957,19 +957,26 @@ def find_latest_pr_json(project_root, repo, pr_number):
     if not output_dir.exists():
         return None
     
-    # Find all month directories
-    month_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()], reverse=True)
+    # First try to find in all month directories
+    # Find all month directories (format: YYYY-MM)
+    month_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir() and re.match(r'\d{4}-\d{2}', d.name)], reverse=True)
     
-    # Search for PR JSON files in each month directory
+    # First search in month directories
     for month_dir in month_dirs:
-        # Find all JSON files for the specified PR
+        # Find all JSON files for the specified PR in this month directory
         pr_files = list(month_dir.glob(f"pr_{pr_number}_*.json"))
         
         # Sort by modification time (newest first)
-        pr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-        
         if pr_files:
+            pr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             return pr_files[0]
+    
+    # If not found in month directories, search in main directory
+    pr_files = list(output_dir.glob(f"pr_{pr_number}_*.json"))
+    # Sort by modification time (newest first)
+    if pr_files:
+        pr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        return pr_files[0]
     
     return None
 

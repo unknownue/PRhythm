@@ -80,7 +80,18 @@ for REPO in $REPOS; do
     
     # Get the latest PR information JSON file
     REPO_NAME=$(echo $REPO | cut -d'/' -f2)
-    PR_JSON=$(ls -t output/$REPO_NAME/pr_${PR_NUMBER}_*.json 2>/dev/null | head -1)
+    
+    # Update: Consider monthly directory structure when searching for PR JSON files
+    # First get current year-month
+    CURRENT_MONTH=$(date +"%Y-%m")
+    
+    # First search in the monthly directory
+    PR_JSON=$(find output/$REPO_NAME/$CURRENT_MONTH -name "pr_${PR_NUMBER}_*.json" -type f 2>/dev/null | sort -r | head -1)
+    
+    # If not found in monthly directory, search in main directory
+    if [ -z "$PR_JSON" ]; then
+      PR_JSON=$(find output/$REPO_NAME -name "pr_${PR_NUMBER}_*.json" -type f -maxdepth 1 2>/dev/null | sort -r | head -1)
+    fi
     
     if [ -z "$PR_JSON" ]; then
       echo "Error: Cannot find JSON file for PR #$PR_NUMBER, skipping analysis"
@@ -110,4 +121,4 @@ for REPO in $REPOS; do
   done
 done
 
-echo "===== PR Analysis Update Completed $(date) =====" 
+echo "===== PR Analysis Update Completed $(date) ====="
