@@ -82,3 +82,9 @@ publishing:
     
     ---
     *Analyzed by PRhythm* 
+
+# Viewer configuration
+viewer:
+  enabled: true  # Enable or disable the Markdown viewer
+  port: 8080     # Port to use for the Markdown viewer
+  debug: false   # Enable debug mode for the Flask application 

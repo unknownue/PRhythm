@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ file_path }} - PRhythm</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/pygments.css">
+</head>
+<body>
+    <div class="container with-sidebar">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>PR Analysis Reports</h3>
+                <a href="/" class="back-link">← Back to Index</a>
+            </div>
+            
+            <div class="sidebar-content">
+                {% if repos %}
+                    {% for repo_name, repo_files in repos.items() %}
+                        <div class="repo-section">
+                            <h4 class="repo-name">{{ repo_name }}</h4>
+                            <ul class="file-nav">
+                                {% for file in repo_files %}
+                                    <li {% if file.active %}class="active"{% endif %}>
+                                        <a href="/view/{{ file.path }}" title="{{ file.path }}">
+                                            {{ file.name }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>No other files available.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="content-header">
+                <h2>{{ file_path }}</h2>
+            </div>
+            
+            <div class="markdown-body">
+                {{ content|safe }}
+            </div>
+            
+            <div class="content-footer">
+                <a href="/" class="back-link">← Back to Index</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Enhanced script to improve code blocks
+        document.addEventListener('DOMContentLoaded', function() {
+            // Process all code blocks
+            const codeBlocks = document.querySelectorAll('.codehilite pre');
+            codeBlocks.forEach(function(block, index) {
+                // Add line numbers
+                const lines = block.textContent.split('\n');
+                if (lines.length > 1) {
+                    // Create line numbers element with proper formatting
+                    const lineNumbersElement = document.createElement('div');
+                    lineNumbersElement.className = 'line-numbers';
+                    
+                    // Generate line numbers with proper line breaks
+                    let lineNumbers = '';
+                    for (let i = 1; i < lines.length; i++) {
+                        lineNumbers += i + '\n';
+                    }
+                    lineNumbersElement.textContent = lineNumbers;
+                    
+                    // Insert line numbers before the code block
+                    block.parentNode.insertBefore(lineNumbersElement, block);
+                    block.parentNode.classList.add('with-line-numbers');
+                }
+                
+                // Add copy button
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.textContent = 'Copy';
+                copyButton.title = 'Copy to clipboard';
+                copyButton.onclick = function() {
+                    const code = block.textContent;
+                    navigator.clipboard.writeText(code).then(function() {
+                        copyButton.textContent = 'Copied!';
+                        setTimeout(function() {
+                            copyButton.textContent = 'Copy';
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Could not copy text: ', err);
+                    });
+                };
+                block.parentNode.appendChild(copyButton);
+                
+                // Try to detect language from class
+                const codeElement = block.querySelector('code');
+                if (codeElement) {
+                    const classes = codeElement.className.split(' ');
+                    for (const cls of classes) {
+                        if (cls.startsWith('language-')) {
+                            block.parentNode.classList.add(cls);
+                            // Add language label
+                            const langLabel = document.createElement('div');
+                            langLabel.className = 'language-label';
+                            langLabel.textContent = cls.replace('language-', '');
+                            block.parentNode.appendChild(langLabel);
+                            break;
+                        }
+                    }
+                }
+            });
+            
+            // Fix inline code that might be incorrectly rendered
+            const inlineCodeElements = document.querySelectorAll('p code, li code, h1 code, h2 code, h3 code, h4 code, h5 code, h6 code');
+            inlineCodeElements.forEach(function(element) {
+                // Remove any syntax highlighting classes from inline code
+                element.className = '';
+            });
+        });
+    </script>
+    
+    <style>
+        /* Additional styles for code blocks */
+        .copy-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            padding: 3px 8px;
+            font-size: 12px;
+            color: #24292e;
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .codehilite {
+            position: relative;
+        }
+        
+        .codehilite:hover .copy-button {
+            opacity: 1;
+        }
+        
+        .language-label {
+            position: absolute;
+            top: 5px;
+            right: 70px;
+            padding: 3px 8px;
+            font-size: 12px;
+            color: #6a737d;
+            background-color: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 3px;
+            opacity: 0.7;
+        }
+        
+        /* Fix for line numbers */
+        .line-numbers {
+            display: block;
+            white-space: pre;
+            line-height: 1.45;
+        }
+    </style>
+</body>
+</html> 

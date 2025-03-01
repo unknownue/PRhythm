@@ -8,6 +8,8 @@ services:
       - ..:/app  # Map the entire project directory to the container
       - ~/.config/gh:/root/.config/gh:ro  # Mount GitHub CLI credentials (read-only)
     restart: unless-stopped
+    ports:
+      - "${VIEWER_PORT:-9090}:${VIEWER_PORT:-9090}"  # Expose port for the Markdown viewer (default to 9090)
     environment:
       - TZ=UTC
       - PYTHONUNBUFFERED=1  # Disable Python output buffering to ensure real-time logging
@@ -15,24 +17,9 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - LLM_API_KEY=${LLM_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - VIEWER_PORT=${VIEWER_PORT:-9090}  # Set the viewer port (default to 9090)
       # - NOTION_API_KEY=${NOTION_API_KEY}
-    # Use custom command to start scheduled tasks
-    command: >
-      sh -c "
-        # Initial setup
-        python scripts/check_pull_repo.py --skip-clone &&
-        # Make script executable
-        chmod +x /app/update_pr_reports.sh &&
-        # Install cron (with sudo to avoid permission issues)
-        apt-get update || true &&
-        apt-get install -y cron jq || true &&
-        # Create cron job
-        echo '0 * * * * cd /app && ./update_pr_reports.sh >> /app/cron.log 2>&1' > /etc/cron.d/prhythm-cron &&
-        chmod 0644 /etc/cron.d/prhythm-cron &&
-        crontab /etc/cron.d/prhythm-cron &&
-        # Start cron and keep container running
-        service cron start || cron &&
-        tail -f /dev/null
-      "
+    # Use entrypoint script to start scheduled tasks
+    command: /app/docker/entrypoint.sh
     # Uncomment below to use custom command instead of scheduled task
     # command: python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn 

@@ -398,7 +398,15 @@ def call_openai_compatible_api(prompt, api_key, model, base_url, temperature, co
         
         if response.status_code == 200:
             result = response.json()
-            return result['choices'][0]['message']['content']
+            content = result['choices'][0]['message']['content']
+            
+            # Remove ```markdown tags from the beginning and end of the content
+            if content.startswith("```markdown"):
+                content = content[len("```markdown"):].lstrip()
+            if content.endswith("```"):
+                content = content[:-3].rstrip()
+                
+            return content
         else:
             print(f"Error calling API: {response.status_code}")
             print(f"Response: {response.text}")
