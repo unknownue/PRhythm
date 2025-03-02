@@ -52,6 +52,12 @@ Docker deployment provides an isolated environment and simplified setup process,
    
    # Or start and run an immediate update
    ./start_docker_service.sh --run-now
+   
+   # Or start with scheduled updates (every 3600 seconds)
+   ./start_docker_service.sh --schedule 3600
+   
+   # Or combine options
+   ./start_docker_service.sh --port 8080 --schedule 3600 --run-now
    ```
 
 4. **Access the Markdown Viewer**:
@@ -187,7 +193,7 @@ python scripts/update_pr_reports.py --schedule 3600
 
 ```bash
 # Start container with convenience script
-./start_docker_service.sh [--port PORT] [--run-now] [--force]
+./start_docker_service.sh [--port PORT] [--run-now] [--force] [--schedule SECONDS]
 
 # View logs
 docker logs -f prhythm

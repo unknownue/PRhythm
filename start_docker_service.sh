@@ -33,6 +33,7 @@ display_usage() {
     echo -e "  -r, --run-now    Run an immediate update after starting the service"
     echo -e "  -f, --force      Force rebuild Docker image"
     echo -e "  -p, --port PORT  Specify a custom port for the Markdown viewer"
+    echo -e "  -s, --schedule SECONDS  Set interval in seconds for scheduled PR updates"
     echo -e "\n${YELLOW}Environment Variables:${NC}"
     echo -e "  GITHUB_TOKEN     GitHub API token (required)"
     echo -e "  LLM_API_KEY      LLM API key (required)"
@@ -45,6 +46,7 @@ display_usage() {
 RUN_NOW=false
 FORCE_REBUILD=false
 CUSTOM_PORT=""
+SCHEDULE_INTERVAL=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -66,6 +68,15 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo -e "${RED}Error: --port requires a valid port number${NC}"
+                exit 1
+            fi
+            ;;
+        -s|--schedule)
+            if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                SCHEDULE_INTERVAL="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --schedule requires a valid number of seconds${NC}"
                 exit 1
             fi
             ;;
@@ -237,18 +248,37 @@ fi
 # Run immediate update if requested
 if [ "$RUN_NOW" = true ]; then
     echo -e "${YELLOW}Running immediate update...${NC}"
-    docker exec -it prhythm python /app/scripts/update_pr_reports.py
+    if [ -n "$SCHEDULE_INTERVAL" ]; then
+        echo -e "${YELLOW}Starting scheduled updates with interval of ${SCHEDULE_INTERVAL} seconds...${NC}"
+        docker exec -it prhythm python /app/scripts/update_pr_reports.py --schedule "$SCHEDULE_INTERVAL"
+    else
+        docker exec -it prhythm python /app/scripts/update_pr_reports.py
+    fi
+elif [ -n "$SCHEDULE_INTERVAL" ]; then
+    echo -e "${YELLOW}Starting scheduled updates with interval of ${SCHEDULE_INTERVAL} seconds...${NC}"
+    docker exec -d prhythm bash -c "nohup python /app/scripts/update_pr_reports.py --schedule $SCHEDULE_INTERVAL > /app/update_log.txt 2>&1 &"
+    echo -e "${YELLOW}Updates are running in background. Check logs with:${NC}"
+    echo -e "  docker exec prhythm cat /app/update_log.txt"
 fi
 
 # Display status and usage information
 echo -e "\n${GREEN}PRhythm Docker service is now running!${NC}"
-echo -e "${YELLOW}You need to manually run updates when needed.${NC}"
+if [ -n "$SCHEDULE_INTERVAL" ]; then
+    echo -e "${YELLOW}PR updates are scheduled to run every ${SCHEDULE_INTERVAL} seconds.${NC}"
+else
+    echo -e "${YELLOW}You need to manually run updates when needed.${NC}"
+fi
 echo -e "${YELLOW}Markdown viewer is available at: http://localhost:${VIEWER_PORT}${NC}"
 echo -e "\n${YELLOW}Useful commands:${NC}"
 echo -e "  ${GREEN}View logs:${NC}"
 echo -e "    docker logs -f prhythm"
 echo -e "  ${GREEN}Run manual update:${NC}"
-echo -e "    docker exec -it prhythm python /app/scripts/update_pr_reports.py"
+if [ -n "$SCHEDULE_INTERVAL" ]; then
+    echo -e "    docker exec prhythm cat /app/update_log.txt  # View scheduled update logs"
+else
+    echo -e "    docker exec -it prhythm python /app/scripts/update_pr_reports.py"
+    echo -e "    docker exec -it prhythm python /app/scripts/update_pr_reports.py --schedule 3600  # Run hourly"
+fi
 echo -e "  ${GREEN}Stop service:${NC}"
 echo -e "    cd docker && docker-compose down"
 echo -e "  ${GREEN}View generated reports:${NC}"
