@@ -560,9 +560,8 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     if 'reviews' in pr_data:
         pr_data['reviews'] = []
     
-    # Prepare multilingual instructions and format
+    # Prepare multilingual instructions
     multilingual_instruction = prepare_multilingual_instruction(output_language)
-    multilingual_format = prepare_multilingual_format(output_language)
     
     # Create a context dictionary with all variables needed for the prompt
     context = {
@@ -577,7 +576,6 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         'module_context_summary': module_context_summary,
         'modified_file_contents': modified_file_contents,
         'multilingual_instruction': multilingual_instruction,
-        'multilingual_format': multilingual_format,
         'len': len  # Include len function for use in the template
     }
     
@@ -618,7 +616,6 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     prompt = prompt.replace("{module_context_summary}", module_context_summary)
     prompt = prompt.replace("{modified_file_contents}", modified_file_contents)
     prompt = prompt.replace("{multilingual_instruction}", multilingual_instruction)
-    prompt = prompt.replace("{multilingual_format}", multilingual_format)
     
     # Replace simple variable references
     for key in pr_data:
@@ -646,6 +643,9 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         if body_placeholder in prompt:
             prompt = prompt.replace(body_placeholder, pr_data['body'] or "No description provided")
     
+    # Remove any remaining {multilingual_format} placeholder
+    prompt = prompt.replace("{multilingual_format}", "")
+    
     return prompt
 
 def prepare_multilingual_instruction(output_language):
@@ -661,42 +661,23 @@ def prepare_multilingual_instruction(output_language):
     if output_language == "multilingual":
         return """
 Generate your analysis in multiple languages. For each language section:
-1. Use the appropriate language for all content except code and technical terms
-2. Maintain consistent structure across all language versions
-3. Ensure each language version is complete and standalone
+1. Replace "[Language]" with the appropriate language name (e.g., "English", "中文", "Français")
+2. Use the appropriate language for all content except code and technical terms
+3. Maintain consistent structure across all language versions
+4. Keep all section headings in English (e.g., "Basic Information", "The Story of This Pull Request")
+5. In the "Key Files Changed" section:
+   - List the most significant files changed
+   - Include a brief description of what changed and why for each important file
+   - Add code snippets showing the key modifications (both before and after if applicable)
+   - Explain how these changes relate to the overall purpose of the PR
+   - Do not translate any code, comments, or variable names
+6. Ensure each language version is complete and standalone
+7. Separate each language version with the "---" delimiter
 """
     else:
         return f"""
 Generate your analysis in {output_language}.
 """
-
-def prepare_multilingual_format(output_language):
-    """
-    Prepare multilingual format based on output language
-    
-    Args:
-        output_language: Output language
-        
-    Returns:
-        str: Multilingual format
-    """
-    if output_language == "multilingual":
-        return """
-# English Version
-[Complete English analysis here]
-
----
-
-# 中文版本 (Chinese Version)
-[Complete Chinese analysis here]
-
----
-
-# [Additional language versions as specified in the configuration]
-[Complete analysis in additional languages here]
-"""
-    else:
-        return ""  # Empty string for single language output
 
 def save_multilingual_reports(report, pr_data, output_dir, languages):
     """
@@ -759,55 +740,60 @@ def split_multilingual_report(report, languages):
     Returns:
         dict: Language sections
     """
-    # Define language markers
+    # Define language markers (both English and native names)
     language_markers = {
         'en': ['# English Version', '# English'],
-        'zh-cn': ['# 中文版本', '# Chinese Version', '# 中文版本 (Chinese Version)'],
-        'ja': ['# 日本語版', '# Japanese Version', '# 日本語版 (Japanese Version)'],
-        'ko': ['# 한국어 버전', '# Korean Version', '# 한국어 버전 (Korean Version)'],
-        'fr': ['# Version Française', '# French Version', '# Version Française (French Version)'],
-        'de': ['# Deutsche Version', '# German Version', '# Deutsche Version (German Version)'],
-        'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)']
+        'zh-cn': ['# 中文版本', '# Chinese Version', '# 中文版本 (Chinese Version)', '# Chinese'],
+        'ja': ['# 日本語版', '# Japanese Version', '# 日本語版 (Japanese Version)', '# Japanese'],
+        'ko': ['# 한국어 버전', '# Korean Version', '# 한국어 버전 (Korean Version)', '# Korean'],
+        'fr': ['# Version Française', '# French Version', '# Version Française (French Version)', '# French', '# Français'],
+        'de': ['# Deutsche Version', '# German Version', '# Deutsche Version (German Version)', '# German', '# Deutsch'],
+        'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)', '# Spanish', '# Español']
     }
     
     # Initialize result dictionary
     result = {}
     
-    # If the report doesn't contain language markers, it's a single language report
-    if not any(marker in report for markers in language_markers.values() for marker in markers):
-        # Assume it's in the primary language (first in the list)
-        if languages:
-            result[languages[0]] = report
-        else:
-            result['en'] = report  # Default to English
-        return result
+    # Split the report by "---" delimiter
+    sections = report.split('---')
     
-    # Split the report by language markers
-    lines = report.split('\n')
-    current_lang = None
-    current_content = []
-    
-    for line in lines:
-        # Check if this line is a language marker
-        found_marker = False
+    # Process each section
+    for section in sections:
+        if not section.strip():
+            continue
+        
+        # Get the first line which should contain the language marker
+        first_line = section.strip().split('\n')[0].strip()
+        
+        # Identify the language
+        identified_lang = None
         for lang, markers in language_markers.items():
-            if any(marker in line for marker in markers):
-                # Save previous language content if exists
-                if current_lang and current_content:
-                    result[current_lang] = '\n'.join(current_content)
-                
-                # Start new language section
-                current_lang = lang
-                current_content = [line]
-                found_marker = True
+            if any(marker in first_line for marker in markers):
+                identified_lang = lang
                 break
         
-        if not found_marker and current_lang:
-            current_content.append(line)
+        # If language not identified but section has content
+        if not identified_lang and section.strip():
+            # Try to guess language from content
+            for lang in languages:
+                if lang in first_line.lower():
+                    identified_lang = lang
+                    break
+            
+            # If still not identified, use the first language in the list
+            if not identified_lang and languages:
+                identified_lang = languages[0]
+        
+        # Add section to results if language identified
+        if identified_lang:
+            result[identified_lang] = section.strip()
     
-    # Save the last language section
-    if current_lang and current_content:
-        result[current_lang] = '\n'.join(current_content)
+    # If no sections were found but we have content, treat as single language
+    if not result and report.strip():
+        if languages:
+            result[languages[0]] = report.strip()
+        else:
+            result['en'] = report.strip()
     
     return result
 

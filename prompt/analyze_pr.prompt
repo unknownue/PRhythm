@@ -87,8 +87,29 @@ Include a simple ASCII diagram that illustrates the relationships between the co
 
 ## Key Files Changed
 
-Briefly mention the most significant files changed:
+List the most significant files changed in this PR:
 {file_changes_summary}
+
+For each important file, include:
+1. A brief description of what changed and why
+2. Code snippets showing the key modifications (both before and after if applicable)
+3. How these changes relate to the overall purpose of the PR
+
+Example:
+```python
+# File: path/to/file.py
+# Before:
+def old_method():
+    # Old implementation
+    pass
+
+# After:
+def new_method():
+    # Improved implementation
+    pass
+```
+
+Remember to preserve all code exactly as it appears in the original - do not translate any code, comments, or variable names.
 
 ## Further Reading
 
