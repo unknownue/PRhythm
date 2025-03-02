@@ -56,7 +56,20 @@ llm:
 
 # Output configuration
 output:
-  language: "en"  # Output language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
+  # Primary language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
+  primary_language: "en"
+  
+  # Enable multilingual output
+  multilingual: false
+  
+  # Languages to generate reports in (when multilingual is true)
+  languages:
+    - "en"     # English
+    - "zh-cn"  # Chinese (Simplified)
+    # - "ja"     # Japanese
+    # - "ko"     # Korean
+    # Uncomment or add more languages as needed
+  
   # Additional output formatting options can be added here
 
 # Publishing configuration

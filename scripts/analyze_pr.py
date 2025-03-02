@@ -560,6 +560,10 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     if 'reviews' in pr_data:
         pr_data['reviews'] = []
     
+    # Prepare multilingual instructions and format
+    multilingual_instruction = prepare_multilingual_instruction(output_language)
+    multilingual_format = prepare_multilingual_format(output_language)
+    
     # Create a context dictionary with all variables needed for the prompt
     context = {
         'pr_data': pr_data,
@@ -572,6 +576,8 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         'learning_points': learning_points,
         'module_context_summary': module_context_summary,
         'modified_file_contents': modified_file_contents,
+        'multilingual_instruction': multilingual_instruction,
+        'multilingual_format': multilingual_format,
         'len': len  # Include len function for use in the template
     }
     
@@ -611,6 +617,8 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     prompt = prompt.replace("{learning_points}", learning_points)
     prompt = prompt.replace("{module_context_summary}", module_context_summary)
     prompt = prompt.replace("{modified_file_contents}", modified_file_contents)
+    prompt = prompt.replace("{multilingual_instruction}", multilingual_instruction)
+    prompt = prompt.replace("{multilingual_format}", multilingual_format)
     
     # Replace simple variable references
     for key in pr_data:
@@ -639,6 +647,169 @@ def prepare_prompt(pr_data, prompt_template, output_language):
             prompt = prompt.replace(body_placeholder, pr_data['body'] or "No description provided")
     
     return prompt
+
+def prepare_multilingual_instruction(output_language):
+    """
+    Prepare multilingual instruction based on output language
+    
+    Args:
+        output_language: Output language
+        
+    Returns:
+        str: Multilingual instruction
+    """
+    if output_language == "multilingual":
+        return """
+Generate your analysis in multiple languages. For each language section:
+1. Use the appropriate language for all content except code and technical terms
+2. Maintain consistent structure across all language versions
+3. Ensure each language version is complete and standalone
+"""
+    else:
+        return f"""
+Generate your analysis in {output_language}.
+"""
+
+def prepare_multilingual_format(output_language):
+    """
+    Prepare multilingual format based on output language
+    
+    Args:
+        output_language: Output language
+        
+    Returns:
+        str: Multilingual format
+    """
+    if output_language == "multilingual":
+        return """
+# English Version
+[Complete English analysis here]
+
+---
+
+# 中文版本 (Chinese Version)
+[Complete Chinese analysis here]
+
+---
+
+# [Additional language versions as specified in the configuration]
+[Complete analysis in additional languages here]
+"""
+    else:
+        return ""  # Empty string for single language output
+
+def save_multilingual_reports(report, pr_data, output_dir, languages):
+    """
+    Save multilingual reports to separate files
+    
+    Args:
+        report: Analysis report (containing multiple language versions)
+        pr_data: PR data
+        output_dir: Output directory
+        languages: List of languages
+        
+    Returns:
+        list: Paths to the saved files
+    """
+    # Extract repository name from owner/repo format
+    repo = pr_data.get('repository', 'unknown')
+    repo_name = repo.split('/')[-1]
+    
+    # Get current date for month-based directory
+    current_date = datetime.now()
+    month_dir = current_date.strftime('%Y-%m')  # Format: YYYY-MM
+    
+    # Create repository-specific directory
+    repo_output_dir = output_dir / repo_name / month_dir
+    repo_output_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Get PR number
+    pr_number = pr_data.get('number', 'unknown')
+    
+    # Base timestamp for all files
+    timestamp = current_date.strftime('%Y%m%d_%H%M%S')
+    
+    # Split the report into language sections
+    language_sections = split_multilingual_report(report, languages)
+    
+    saved_files = []
+    
+    # Save each language section to a separate file
+    for lang, content in language_sections.items():
+        filename = f"pr_{pr_number}_{lang}_{timestamp}.md"
+        file_path = repo_output_dir / filename
+        
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(content)
+            saved_files.append(file_path)
+        except Exception as e:
+            print(f"Error saving {lang} analysis report: {e}")
+    
+    return saved_files
+
+def split_multilingual_report(report, languages):
+    """
+    Split a multilingual report into separate language sections
+    
+    Args:
+        report: Multilingual report
+        languages: List of languages
+        
+    Returns:
+        dict: Language sections
+    """
+    # Define language markers
+    language_markers = {
+        'en': ['# English Version', '# English'],
+        'zh-cn': ['# 中文版本', '# Chinese Version', '# 中文版本 (Chinese Version)'],
+        'ja': ['# 日本語版', '# Japanese Version', '# 日本語版 (Japanese Version)'],
+        'ko': ['# 한국어 버전', '# Korean Version', '# 한국어 버전 (Korean Version)'],
+        'fr': ['# Version Française', '# French Version', '# Version Française (French Version)'],
+        'de': ['# Deutsche Version', '# German Version', '# Deutsche Version (German Version)'],
+        'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)']
+    }
+    
+    # Initialize result dictionary
+    result = {}
+    
+    # If the report doesn't contain language markers, it's a single language report
+    if not any(marker in report for markers in language_markers.values() for marker in markers):
+        # Assume it's in the primary language (first in the list)
+        if languages:
+            result[languages[0]] = report
+        else:
+            result['en'] = report  # Default to English
+        return result
+    
+    # Split the report by language markers
+    lines = report.split('\n')
+    current_lang = None
+    current_content = []
+    
+    for line in lines:
+        # Check if this line is a language marker
+        found_marker = False
+        for lang, markers in language_markers.items():
+            if any(marker in line for marker in markers):
+                # Save previous language content if exists
+                if current_lang and current_content:
+                    result[current_lang] = '\n'.join(current_content)
+                
+                # Start new language section
+                current_lang = lang
+                current_content = [line]
+                found_marker = True
+                break
+        
+        if not found_marker and current_lang:
+            current_content.append(line)
+    
+    # Save the last language section
+    if current_lang and current_content:
+        result[current_lang] = '\n'.join(current_content)
+    
+    return result
 
 def calculate_pr_complexity(pr_data):
     """
@@ -929,7 +1100,7 @@ def parse_arguments():
     parser.add_argument('--json', help='Path to the PR JSON file')
     parser.add_argument('--repo', help='Repository name (owner/repo) - used to find the latest PR JSON file if --json is not specified')
     parser.add_argument('--pr', type=int, help='PR number - used to find the latest PR JSON file if --json is not specified')
-    parser.add_argument('--language', default='en', help='Output language (e.g., en, zh-cn)')
+    parser.add_argument('--language', default='', help='Output language (e.g., en, zh-cn, multilingual)')
     parser.add_argument('--config', default='config.yaml', help='Path to the configuration file')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
     parser.add_argument('--dry-run', action='store_true', help='Only print the prompt without sending the request')
@@ -1034,10 +1205,20 @@ def main():
     prompt_path = project_root / "prompt" / "analyze_pr.prompt"
     prompt_template = read_prompt_template(prompt_path)
     
+    # Determine output language
+    output_language = args.language
+    if not output_language:
+        # Use configuration setting if not specified in command line
+        if config.get('output', {}).get('multilingual', False):
+            output_language = "multilingual"
+        else:
+            output_language = config.get('output', {}).get('primary_language', 'en')
+    
     # Prepare prompt
-    prompt = prepare_prompt(pr_data, prompt_template, args.language)
+    prompt = prepare_prompt(pr_data, prompt_template, output_language)
     
     print(f"Analyzing PR #{pr_data.get('number', 'unknown')} from repository {pr_data.get('repository', 'unknown')}...")
+    print(f"Output language: {output_language}")
     
     # If dry run, just print the prompt and exit
     if args.dry_run:
@@ -1066,10 +1247,21 @@ def main():
     output_dir = project_root / "analysis"
     output_dir.mkdir(exist_ok=True)
     
-    # Save analysis report
-    file_path = save_analysis_report(report, pr_data, output_dir, args.language)
-    
-    print(f"Analysis report saved to: {file_path}")
+    # Save analysis report(s)
+    if output_language == "multilingual":
+        # Get languages from config
+        languages = config.get('output', {}).get('languages', ['en', 'zh-cn'])
+        
+        # Save multilingual reports
+        file_paths = save_multilingual_reports(report, pr_data, output_dir, languages)
+        
+        print(f"Multilingual analysis reports saved to:")
+        for path in file_paths:
+            print(f"- {path}")
+    else:
+        # Save single language report
+        file_path = save_analysis_report(report, pr_data, output_dir, output_language)
+        print(f"Analysis report saved to: {file_path}")
 
 if __name__ == "__main__":
     main() 

@@ -45,3 +45,6 @@ analysis/
 .env
 config.yaml
 # Keep config.example.yaml as a template 
+
+
+test.sh

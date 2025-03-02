@@ -1,4 +1,4 @@
-You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a narrative-style technical report in {output_language}.
+You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a narrative-style technical report.
 
 # INSTRUCTIONS FOR YOU (NOT PART OF THE OUTPUT):
 Your task is to analyze this PR thoroughly and present your findings as a cohesive narrative rather than disconnected sections. Follow these guidelines carefully:
@@ -10,10 +10,15 @@ Your task is to analyze this PR thoroughly and present your findings as a cohesi
    - Keep widely recognized technical terms in English
    - For other terms, provide translation with English in parentheses
    - For complex concepts, explain in both languages for clarity
-5. **Contextual Understanding**: Explain not just what changed, but why it changed and what can be learned.
-6. **Image References**: Preserve all image references and links exactly as they appear in the original PR description.
-7. **Original Title**: Do not translate the PR title - keep it in its original English form.
-8. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
+5. **Code Preservation**: 
+   - Never translate code snippets, variable names, function names, or code comments
+   - Keep all code examples and diff blocks exactly as they appear in the original
+   - Preserve all syntax, indentation, and formatting in code blocks
+6. **Contextual Understanding**: Explain not just what changed, but why it changed and what can be learned.
+7. **Image References**: Preserve all image references and links exactly as they appear in the original PR description.
+8. **Original Title**: Do not translate the PR title - keep it in its original English form.
+9. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
+10. **Multilingual Output**: {multilingual_instruction}
 
 Your narrative should feel like an experienced developer explaining the PR to a colleague - technically precise but conversational and insightful.
 
@@ -23,6 +28,8 @@ Below are the contents of the files modified in this PR. Use this information to
 {modified_file_contents}
 
 # OUTPUT FORMAT (INCLUDE IN YOUR RESPONSE):
+
+{multilingual_format}
 
 # Title
 
@@ -36,7 +43,7 @@ Below are the contents of the files modified in this PR. Use this information to
 - **Merged By**: {pr_data['mergedBy']['login'] if pr_data['mergedBy'] else "N/A"}
 
 ## Description Translation
-Translate the PR description to {output_language}, preserving:
+Translate the PR description to the target language, preserving:
 - Technical terms in English
 - All image references and links exactly as they appear
 - Code blocks and formatting
