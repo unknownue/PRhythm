@@ -19,7 +19,7 @@ services:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - VIEWER_PORT=${VIEWER_PORT:-9090}  # Set the viewer port (default to 9090)
       # - NOTION_API_KEY=${NOTION_API_KEY}
-    # Use entrypoint script to start scheduled tasks
+    # Use entrypoint script to start the service
     command: /app/docker/entrypoint.sh
-    # Uncomment below to use custom command instead of scheduled task
+    # Uncomment below to use custom command instead
     # command: python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn 

@@ -237,18 +237,18 @@ fi
 # Run immediate update if requested
 if [ "$RUN_NOW" = true ]; then
     echo -e "${YELLOW}Running immediate update...${NC}"
-    docker exec -it prhythm /app/update_pr_reports.sh
+    docker exec -it prhythm python /app/scripts/update_pr_reports.py
 fi
 
 # Display status and usage information
 echo -e "\n${GREEN}PRhythm Docker service is now running!${NC}"
-echo -e "${YELLOW}The service will automatically update PR reports according to the cron schedule.${NC}"
+echo -e "${YELLOW}You need to manually run updates when needed.${NC}"
 echo -e "${YELLOW}Markdown viewer is available at: http://localhost:${VIEWER_PORT}${NC}"
 echo -e "\n${YELLOW}Useful commands:${NC}"
 echo -e "  ${GREEN}View logs:${NC}"
 echo -e "    docker logs -f prhythm"
 echo -e "  ${GREEN}Run manual update:${NC}"
-echo -e "    docker exec -it prhythm /app/update_pr_reports.sh"
+echo -e "    docker exec -it prhythm python /app/scripts/update_pr_reports.py"
 echo -e "  ${GREEN}Stop service:${NC}"
 echo -e "    cd docker && docker-compose down"
 echo -e "  ${GREEN}View generated reports:${NC}"

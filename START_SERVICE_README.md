@@ -117,6 +117,6 @@ If you encounter issues:
 
 ## Notes
 
-- The service will automatically update PR reports according to the cron schedule defined in the Docker configuration
+- You need to manually run updates when needed using `docker exec -it prhythm /app/update_pr_reports.sh`
 - Reports are generated in the language specified in the `config.yaml` file
 - All generated reports are stored in the `analysis` directory 

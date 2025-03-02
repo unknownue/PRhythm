@@ -12,7 +12,6 @@ RUN apt-get install -y --no-install-recommends \
     gnupg \
     ca-certificates \
     git \
-    cron \
     jq
 
 # Install GitHub CLI
@@ -28,9 +27,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
 RUN mkdir -p /app/output /app/analysis /app/repos
-
-# Keep root user to be able to set up cron jobs
-# Note: In production environments, consider security implications, may need more complex setup
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

@@ -54,22 +54,13 @@ Docker deployment provides an isolated environment and simplified setup process,
    ./start_docker_service.sh --run-now
    ```
 
-4. **View logs and status**:
-   ```bash
-   # View container logs
-   docker logs -f prhythm
-   
-   # Check generated reports
-   ls -la analysis
-   ```
-
-5. **Access the Markdown Viewer**:
+4. **Access the Markdown Viewer**:
    ```bash
    # Open in your browser
    http://localhost:9090  # Or your custom port
    ```
 
-6. **Stop Docker container when needed**:
+5. **Stop Docker container when needed**:
    ```bash
    # Stop the service
    ./stop_docker_service.sh
@@ -108,44 +99,22 @@ If you prefer running in your local environment or need more customization contr
    export VIEWER_PORT="9090"  # Optional: Set custom port for Markdown viewer
    ```
 
-4. **Initialize directory structure**:
+4. **Initialize directory structure and run the tool**:
    ```bash
+   # Initialize repositories
    python scripts/check_pull_repo.py
-   ```
-
-5. **Run automation script**:
-   ```bash
-   # Make script executable
-   chmod +x update_pr_reports.sh
    
-   # Run script
-   ./update_pr_reports.sh
-   ```
-
-6. **Set up scheduled task** (optional):
-   ```bash
-   # Edit crontab
-   crontab -e
+   # Run analysis script
+   python scripts/update_pr_reports.py
    
-   # Add the following line (runs hourly)
-   0 * * * * /path/to/prhythm/update_pr_reports.sh >> /path/to/prhythm/cron.log 2>&1
-   ```
-
-7. **Start the Markdown Viewer**:
-   ```bash
    # Start the viewer application
    cd viewer
    python app.py
-   
-   # Access in your browser
-   http://localhost:9090
    ```
 
-## Detailed Usage Guide
+## Configuration and Usage
 
-Regardless of which deployment method you choose, PRhythm provides a complete set of scripts to implement an automated workflow. Here are the detailed usage steps:
-
-### 1. Configuration File Explanation
+### Configuration File
 
 `config.yaml` is the core configuration file for PRhythm, containing the following main sections:
 
@@ -173,87 +142,48 @@ output:
   language: "en"  # Output language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
 ```
 
-### 2. Manually Running Individual Steps
-
-If you want to understand the entire process or run certain steps individually, you can follow these methods:
+### Common Commands
 
 #### Check Repository Status
-
 ```bash
 python scripts/check_pull_repo.py
 ```
 
 #### Find Unsynchronized PRs
-
 ```bash
 python scripts/track_merged_prs.py --repo "owner/repo"
 ```
 
 #### Get Information for a Specific PR
-
 ```bash
 python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123
 ```
 
 #### Analyze PR and Generate Report
-
 ```bash
-# Method 1: Specify JSON file path directly
-python scripts/analyze_pr.py --json output/repo_name/2024-03/pr_123_20240228_123456.json
-
-# Method 2: Automatically find the latest PR JSON file (recommended)
+# Automatically find the latest PR JSON file
 python scripts/analyze_pr.py --repo "owner/repo" --pr 123
 
 # Specify language and provider
 python scripts/analyze_pr.py --repo "owner/repo" --pr 123 --language zh-cn --provider deepseek
-
-# Dry run (only print the prompt without sending to LLM API)
-python scripts/analyze_pr.py --repo "owner/repo" --pr 123 --dry-run
 ```
 
-#### One-Command PR Fetch and Analysis
-
+#### One Command PR Fetch and Analysis
 ```bash
-# Fetch PR info and analyze in one command (English report)
-python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123 && python scripts/analyze_pr.py --repo "owner/repo" --pr 123
-
-# Fetch PR info and analyze with Chinese report
+# Fetch PR info and analyze in one command with Chinese report
 python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123 && python scripts/analyze_pr.py --repo "owner/repo" --pr 123 --language zh-cn
-
-# Fetch PR info and analyze with specific provider
-python scripts/fetch_pr_info.py --repo "owner/repo" --pr 123 && python scripts/analyze_pr.py --repo "owner/repo" --pr 123 --provider deepseek
 ```
 
-#### Update PR Processing Status
-
+#### Run Complete Workflow
 ```bash
-python scripts/track_merged_prs.py --repo "owner/repo" --update --operation "analysis_complete" --status "success"
+# Run once
+python scripts/update_pr_reports.py
+
+# Run periodically (every hour)
+python scripts/update_pr_reports.py --schedule 3600
 ```
 
-### 3. Automation Script Explanation
-
-The `update_pr_reports.sh` script automatically executes the complete PR analysis workflow:
-
-1. Check and update configured repositories
-2. Get unsynchronized PRs for each repository
-3. Get detailed information for each PR
-4. Use LLM to analyze PRs and generate reports
-5. Update PR processing status
-
-You can run this script directly or set it up as a scheduled task:
-
-```bash
-# Run directly
-./update_pr_reports.sh
-
-# Or set up as a scheduled task
-crontab -e
-# Add: 0 * * * * /path/to/prhythm/update_pr_reports.sh >> /path/to/prhythm/cron.log 2>&1
-```
-
-### 4. Docker Environment Explanation
-
-If using Docker deployment, PRhythm will automatically set up a scheduled task to check for new PRs hourly. You can manage the Docker container with these commands:
+### Docker Commands
 
 ```bash
 # Start container with convenience script
@@ -262,24 +192,14 @@ If using Docker deployment, PRhythm will automatically set up a scheduled task t
 # View logs
 docker logs -f prhythm
 
-# Run analysis manually (without waiting for scheduled task)
-docker exec -it prhythm /app/update_pr_reports.sh
+# Run analysis manually
+docker exec -it prhythm python /app/scripts/update_pr_reports.py
 
 # Stop container
 ./stop_docker_service.sh [--remove]
 ```
 
-The convenience scripts provide additional features:
-
-- **start_docker_service.sh**: 
-  - `--port PORT`: Specify a custom port for the Markdown viewer
-  - `--run-now`: Run an immediate update after starting the service
-  - `--force`: Force rebuild Docker image
-
-- **stop_docker_service.sh**:
-  - `--remove`: Remove container and volumes after stopping
-
-### 5. Output Files Explanation
+### Output Files
 
 Files generated by PRhythm are saved in the following directories with monthly organization:
 
@@ -363,41 +283,4 @@ llm:
       base_url: "https://api.new-provider.com"
       api_key: ""  # Recommended to set via environment variable
       model: "model-name"
-```
-
-### Customizing Docker Configuration
-
-You can customize the Docker configuration by editing `docker/docker-compose.yml` and `docker/Dockerfile`, such as changing the scheduled task frequency, adding additional environment variables, etc.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **GitHub API Rate Limits**: Ensure you've set a valid `GITHUB_TOKEN` environment variable
-2. **LLM API Errors**: Check if your API key is correct and you have sufficient quota
-3. **Docker Permission Issues**: Ensure Docker has access to the mounted directories
-
-### Log Files
-
-- Docker environment: Logs are saved in `/app/cron.log` inside the container
-- Local environment: Logs are saved in script output or redirected files
-
-## Contributing
-
-Contributions are welcome! Feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgements
-
-- GitHub CLI for providing an excellent command-line interface
-- OpenAI/DeepSeek for their powerful LLM APIs
-- All contributors who help improve this tool 
+``` 
