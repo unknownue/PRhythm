@@ -64,19 +64,19 @@ Docker deployment provides an isolated environment and simplified setup process,
 3. **Start Docker container using the convenience script**:
    ```bash
    # Start with default settings
-   ./start_docker_service.sh
+   python start_docker_service.py
    
    # Or start with custom port
-   ./start_docker_service.sh --port 8080
+   python start_docker_service.py --port 8080
    
    # Or start and run an immediate update
-   ./start_docker_service.sh --run-now
+   python start_docker_service.py --run-now
    
    # Or start with scheduled updates (every 3600 seconds)
-   ./start_docker_service.sh --schedule 3600
+   python start_docker_service.py --schedule 3600
    
    # Or combine options
-   ./start_docker_service.sh --port 8080 --schedule 3600 --run-now
+   python start_docker_service.py --port 8080 --schedule 3600 --run-now
    ```
 
 4. **Access the Markdown Viewer**:
@@ -88,10 +88,10 @@ Docker deployment provides an isolated environment and simplified setup process,
 5. **Stop Docker container when needed**:
    ```bash
    # Stop the service
-   ./stop_docker_service.sh
+   python stop_docker_service.py
    
    # Or stop and remove container
-   ./stop_docker_service.sh --remove
+   python stop_docker_service.py --remove
    ```
 
 ### Method 2: Local Direct Deployment
@@ -232,7 +232,7 @@ python scripts/update_pr_reports.py --schedule 3600
 
 ```bash
 # Start container with convenience script
-./start_docker_service.sh [--port PORT] [--run-now] [--force] [--schedule SECONDS]
+python start_docker_service.py [--port PORT] [--run-now] [--force] [--schedule SECONDS]
 
 # View logs
 docker logs -f prhythm
@@ -241,7 +241,7 @@ docker logs -f prhythm
 docker exec -it prhythm python /app/scripts/update_pr_reports.py
 
 # Stop container
-./stop_docker_service.sh [--remove]
+python stop_docker_service.py [--remove]
 ```
 
 ### Output Files
