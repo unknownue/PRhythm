@@ -161,61 +161,97 @@ fi
 if command_exists python; then
     # Read GitHub token from config.yaml if not set in environment
     if [ -z "$GITHUB_TOKEN" ] && [ -z "$CLI_GITHUB_TOKEN" ]; then
+        echo -e "${YELLOW}Attempting to read GitHub token from config.yaml...${NC}"
         CONFIG_GITHUB_TOKEN=$(python -c "
 import yaml
+import sys
+
 try:
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
-    if 'github' in config and 'token' in config['github'] and config['github']['token']:
-        print(config['github']['token'])
+    
+    if 'github' in config and 'token' in config['github']:
+        token = config['github']['token']
+        # Check if token is valid
+        if isinstance(token, str) and token.strip():
+            print(token.strip())
+        else:
+            print('')
     else:
         print('')
-except Exception:
+except Exception as e:
+    print(f'Error reading config: {e}', file=sys.stderr)
     print('')
 ")
         if [ -n "$CONFIG_GITHUB_TOKEN" ]; then
             export GITHUB_TOKEN="$CONFIG_GITHUB_TOKEN"
             echo -e "${YELLOW}Using GitHub token from config.yaml${NC}"
+        else
+            echo -e "${YELLOW}No valid GitHub token found in config.yaml${NC}"
         fi
     fi
     
     # Read LLM API key from config.yaml if not set in environment
     if [ -z "$LLM_API_KEY" ] && [ -z "$CLI_LLM_API_KEY" ]; then
+        echo -e "${YELLOW}Attempting to read LLM API key from config.yaml...${NC}"
         CONFIG_LLM_API_KEY=$(python -c "
 import yaml
+import sys
+
 try:
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
-    if 'llm' in config and 'api_key' in config['llm'] and config['llm']['api_key']:
-        print(config['llm']['api_key'])
+    
+    if 'llm' in config and 'api_key' in config['llm']:
+        api_key = config['llm']['api_key']
+        # Check if api_key is valid
+        if isinstance(api_key, str) and api_key.strip():
+            print(api_key.strip())
+        else:
+            print('')
     else:
         print('')
-except Exception:
+except Exception as e:
+    print(f'Error reading config: {e}', file=sys.stderr)
     print('')
 ")
         if [ -n "$CONFIG_LLM_API_KEY" ]; then
             export LLM_API_KEY="$CONFIG_LLM_API_KEY"
             echo -e "${YELLOW}Using LLM API key from config.yaml${NC}"
+        else
+            echo -e "${YELLOW}No valid LLM API key found in config.yaml${NC}"
         fi
     fi
     
     # Read DeepSeek API key from config.yaml if not set in environment
     if [ -z "$DEEPSEEK_API_KEY" ] && [ -z "$CLI_DEEPSEEK_API_KEY" ]; then
+        echo -e "${YELLOW}Attempting to read DeepSeek API key from config.yaml...${NC}"
         CONFIG_DEEPSEEK_API_KEY=$(python -c "
 import yaml
+import sys
+
 try:
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
-    if 'llm' in config and 'providers' in config['llm'] and 'deepseek' in config['llm']['providers'] and 'api_key' in config['llm']['providers']['deepseek'] and config['llm']['providers']['deepseek']['api_key']:
-        print(config['llm']['providers']['deepseek']['api_key'])
+    
+    if 'llm' in config and 'providers' in config['llm'] and 'deepseek' in config['llm']['providers'] and 'api_key' in config['llm']['providers']['deepseek']:
+        api_key = config['llm']['providers']['deepseek']['api_key']
+        # Check if api_key is valid
+        if isinstance(api_key, str) and api_key.strip():
+            print(api_key.strip())
+        else:
+            print('')
     else:
         print('')
-except Exception:
+except Exception as e:
+    print(f'Error reading config: {e}', file=sys.stderr)
     print('')
 ")
         if [ -n "$CONFIG_DEEPSEEK_API_KEY" ]; then
             export DEEPSEEK_API_KEY="$CONFIG_DEEPSEEK_API_KEY"
             echo -e "${YELLOW}Using DeepSeek API key from config.yaml${NC}"
+        else
+            echo -e "${YELLOW}No valid DeepSeek API key found in config.yaml${NC}"
         fi
     fi
 fi
