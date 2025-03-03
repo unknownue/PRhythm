@@ -6,6 +6,11 @@ Markdown Viewer for PR Analysis Reports
 ---------------------------------------
 A simple Flask application to view Markdown files in the analysis directory.
 This viewer supports code highlighting, image display, and navigation between files.
+
+Configuration:
+- All settings are read from config.yaml in the 'viewer' section
+- Environment variables can override config.yaml settings
+- Command line arguments can be passed via start_docker_service.sh
 """
 
 from flask import Flask, render_template, abort, send_from_directory

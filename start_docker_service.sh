@@ -34,11 +34,13 @@ display_usage() {
     echo -e "  -f, --force      Force rebuild Docker image"
     echo -e "  -p, --port PORT  Specify a custom port for the Markdown viewer"
     echo -e "  -s, --schedule SECONDS  Set interval in seconds for scheduled PR updates"
+    echo -e "  -g, --github-token TOKEN  Specify GitHub token directly"
+    echo -e "  -l, --llm-key KEY  Specify LLM API key directly"
+    echo -e "  -d, --deepseek-key KEY  Specify DeepSeek API key directly"
     echo -e "\n${YELLOW}Environment Variables:${NC}"
-    echo -e "  GITHUB_TOKEN     GitHub API token (required)"
-    echo -e "  LLM_API_KEY      LLM API key (required)"
-    echo -e "  DEEPSEEK_API_KEY DeepSeek API key (if using DeepSeek)"
-    echo -e "  NOTION_API_KEY   Notion API key (if using Notion)"
+    echo -e "  GITHUB_TOKEN     GitHub API token (can also be set in config.yaml)"
+    echo -e "  LLM_API_KEY      LLM API key (can also be set in config.yaml)"
+    echo -e "  DEEPSEEK_API_KEY DeepSeek API key (can also be set in config.yaml)"
     echo -e "  VIEWER_PORT      Port for the Markdown viewer (overrides config.yaml)"
 }
 
@@ -47,6 +49,9 @@ RUN_NOW=false
 FORCE_REBUILD=false
 CUSTOM_PORT=""
 SCHEDULE_INTERVAL=""
+CLI_GITHUB_TOKEN=""
+CLI_LLM_API_KEY=""
+CLI_DEEPSEEK_API_KEY=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -77,6 +82,33 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo -e "${RED}Error: --schedule requires a valid number of seconds${NC}"
+                exit 1
+            fi
+            ;;
+        -g|--github-token)
+            if [[ -n "$2" ]]; then
+                CLI_GITHUB_TOKEN="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --github-token requires a token value${NC}"
+                exit 1
+            fi
+            ;;
+        -l|--llm-key)
+            if [[ -n "$2" ]]; then
+                CLI_LLM_API_KEY="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --llm-key requires a key value${NC}"
+                exit 1
+            fi
+            ;;
+        -d|--deepseek-key)
+            if [[ -n "$2" ]]; then
+                CLI_DEEPSEEK_API_KEY="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --deepseek-key requires a key value${NC}"
                 exit 1
             fi
             ;;
@@ -125,16 +157,95 @@ if [ ! -f config.yaml ]; then
     fi
 fi
 
+# Read tokens from config.yaml if they're not set in environment variables
+if command_exists python; then
+    # Read GitHub token from config.yaml if not set in environment
+    if [ -z "$GITHUB_TOKEN" ] && [ -z "$CLI_GITHUB_TOKEN" ]; then
+        CONFIG_GITHUB_TOKEN=$(python -c "
+import yaml
+try:
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    if 'github' in config and 'token' in config['github'] and config['github']['token']:
+        print(config['github']['token'])
+    else:
+        print('')
+except Exception:
+    print('')
+")
+        if [ -n "$CONFIG_GITHUB_TOKEN" ]; then
+            export GITHUB_TOKEN="$CONFIG_GITHUB_TOKEN"
+            echo -e "${YELLOW}Using GitHub token from config.yaml${NC}"
+        fi
+    fi
+    
+    # Read LLM API key from config.yaml if not set in environment
+    if [ -z "$LLM_API_KEY" ] && [ -z "$CLI_LLM_API_KEY" ]; then
+        CONFIG_LLM_API_KEY=$(python -c "
+import yaml
+try:
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    if 'llm' in config and 'api_key' in config['llm'] and config['llm']['api_key']:
+        print(config['llm']['api_key'])
+    else:
+        print('')
+except Exception:
+    print('')
+")
+        if [ -n "$CONFIG_LLM_API_KEY" ]; then
+            export LLM_API_KEY="$CONFIG_LLM_API_KEY"
+            echo -e "${YELLOW}Using LLM API key from config.yaml${NC}"
+        fi
+    fi
+    
+    # Read DeepSeek API key from config.yaml if not set in environment
+    if [ -z "$DEEPSEEK_API_KEY" ] && [ -z "$CLI_DEEPSEEK_API_KEY" ]; then
+        CONFIG_DEEPSEEK_API_KEY=$(python -c "
+import yaml
+try:
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    if 'llm' in config and 'providers' in config['llm'] and 'deepseek' in config['llm']['providers'] and 'api_key' in config['llm']['providers']['deepseek'] and config['llm']['providers']['deepseek']['api_key']:
+        print(config['llm']['providers']['deepseek']['api_key'])
+    else:
+        print('')
+except Exception:
+    print('')
+")
+        if [ -n "$CONFIG_DEEPSEEK_API_KEY" ]; then
+            export DEEPSEEK_API_KEY="$CONFIG_DEEPSEEK_API_KEY"
+            echo -e "${YELLOW}Using DeepSeek API key from config.yaml${NC}"
+        fi
+    fi
+fi
+
+# Use command line tokens if provided
+if [ -n "$CLI_GITHUB_TOKEN" ]; then
+    export GITHUB_TOKEN="$CLI_GITHUB_TOKEN"
+    echo -e "${YELLOW}Using GitHub token from command line${NC}"
+fi
+
+if [ -n "$CLI_LLM_API_KEY" ]; then
+    export LLM_API_KEY="$CLI_LLM_API_KEY"
+    echo -e "${YELLOW}Using LLM API key from command line${NC}"
+fi
+
+if [ -n "$CLI_DEEPSEEK_API_KEY" ]; then
+    export DEEPSEEK_API_KEY="$CLI_DEEPSEEK_API_KEY"
+    echo -e "${YELLOW}Using DeepSeek API key from command line${NC}"
+fi
+
 # Check required environment variables
 if [ -z "$GITHUB_TOKEN" ]; then
-    echo -e "${RED}Error: GITHUB_TOKEN environment variable is not set.${NC}"
-    echo -e "${YELLOW}Please set it in config.yaml or export it as an environment variable.${NC}"
+    echo -e "${RED}Error: GITHUB_TOKEN is not set.${NC}"
+    echo -e "${YELLOW}Please set it in config.yaml, as an environment variable, or use --github-token option.${NC}"
     exit 1
 fi
 
 if [ -z "$LLM_API_KEY" ]; then
-    echo -e "${RED}Error: LLM_API_KEY environment variable is not set.${NC}"
-    echo -e "${YELLOW}Please set it in config.yaml or export it as an environment variable.${NC}"
+    echo -e "${RED}Error: LLM_API_KEY is not set.${NC}"
+    echo -e "${YELLOW}Please set it in config.yaml, as an environment variable, or use --llm-key option.${NC}"
     exit 1
 fi
 

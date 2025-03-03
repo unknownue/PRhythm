@@ -30,16 +30,35 @@ Docker deployment provides an isolated environment and simplified setup process,
    # Create and edit configuration file
    cp config.example.yaml config.yaml
    # Edit config.yaml with your preferred editor
+   # Set your API tokens in config.yaml:
+   # - github.token: Your GitHub API token
+   # - llm.api_key: Your LLM API key
+   # - llm.providers.deepseek.api_key: Your DeepSeek API key (if using DeepSeek)
    ```
 
-2. **Set environment variables**:
+2. **Set API tokens (choose one method)**:
+   
+   **Option A: Set in config.yaml (recommended)**
+   ```yaml
+   # In config.yaml:
+   github:
+     token: "your-github-token-here"
+   
+   llm:
+     api_key: "your-llm-api-key-here"
+     
+     providers:
+       deepseek:
+         api_key: "your-deepseek-api-key-here"
+   ```
+   
+   **Option B: Set as environment variables**
    ```bash
-   # Create .env file or export environment variables directly
-   echo "GITHUB_TOKEN=your-github-token" > .env
-   echo "LLM_API_KEY=your-llm-api-key" >> .env
-   echo "DEEPSEEK_API_KEY=your-deepseek-api-key" >> .env
-   # Optionally set custom port for the Markdown viewer
-   echo "VIEWER_PORT=9090" >> .env
+   # Export environment variables
+   export GITHUB_TOKEN="your-github-token"
+   export LLM_API_KEY="your-llm-api-key"
+   export DEEPSEEK_API_KEY="your-deepseek-api-key"  # If using DeepSeek
+   export VIEWER_PORT="9090"  # Optional: Set custom port for Markdown viewer
    ```
 
 3. **Start Docker container using the convenience script**:
@@ -94,11 +113,31 @@ If you prefer running in your local environment or need more customization contr
    # Create and edit configuration file
    cp config.example.yaml config.yaml
    # Edit config.yaml with your preferred editor
+   # Set your API tokens in config.yaml:
+   # - github.token: Your GitHub API token
+   # - llm.api_key: Your LLM API key
+   # - llm.providers.deepseek.api_key: Your DeepSeek API key (if using DeepSeek)
    ```
 
-3. **Set environment variables**:
+3. **Set API tokens (choose one method)**:
+   
+   **Option A: Set in config.yaml (recommended)**
+   ```yaml
+   # In config.yaml:
+   github:
+     token: "your-github-token-here"
+   
+   llm:
+     api_key: "your-llm-api-key-here"
+     
+     providers:
+       deepseek:
+         api_key: "your-deepseek-api-key-here"
+   ```
+   
+   **Option B: Set as environment variables**
    ```bash
-   # Set necessary environment variables
+   # Export environment variables
    export GITHUB_TOKEN="your-github-token"
    export LLM_API_KEY="your-llm-api-key"
    export DEEPSEEK_API_KEY="your-deepseek-api-key"  # If using DeepSeek
