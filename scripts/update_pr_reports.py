@@ -129,11 +129,11 @@ def get_provider_from_config(config):
         str: Provider name
     """
     if not config or 'llm' not in config or 'provider' not in config['llm']:
-        logger.warning("LLM provider not specified in config.yaml, defaulting to DeepSeek")
+        logger.warning("LLM provider not specified in config.json, defaulting to DeepSeek")
         return "deepseek"
     
     provider = config['llm']['provider']
-    logger.info(f"Using LLM provider from config.yaml: {provider}")
+    logger.info(f"Using LLM provider from config.json: {provider}")
     return provider
 
 def run_script(script_path, *args):

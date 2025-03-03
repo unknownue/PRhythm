@@ -45,8 +45,10 @@ Docker deployment provides an isolated environment and simplified setup process,
        "token": "your-github-token-here"
      },
      "llm": {
-       "api_key": "your-llm-api-key-here",
        "providers": {
+         "openai": {
+           "api_key": "your-openai-api-key-here"
+         },
          "deepseek": {
            "api_key": "your-deepseek-api-key-here"
          }
@@ -59,8 +61,8 @@ Docker deployment provides an isolated environment and simplified setup process,
    ```bash
    # Export environment variables
    export GITHUB_TOKEN="your-github-token"
-   export LLM_API_KEY="your-llm-api-key"
-   export DEEPSEEK_API_KEY="your-deepseek-api-key"  # If using DeepSeek
+   export OPENAI_API_KEY="your-openai-api-key"
+   export DEEPSEEK_API_KEY="your-deepseek-api-key"
    export VIEWER_PORT="9090"  # Optional: Set custom port for Markdown viewer
    ```
 
@@ -131,8 +133,10 @@ If you prefer running in your local environment or need more customization contr
        "token": "your-github-token-here"
      },
      "llm": {
-       "api_key": "your-llm-api-key-here",
        "providers": {
+         "openai": {
+           "api_key": "your-openai-api-key-here"
+         },
          "deepseek": {
            "api_key": "your-deepseek-api-key-here"
          }
@@ -145,8 +149,8 @@ If you prefer running in your local environment or need more customization contr
    ```bash
    # Export environment variables
    export GITHUB_TOKEN="your-github-token"
-   export LLM_API_KEY="your-llm-api-key"
-   export DEEPSEEK_API_KEY="your-deepseek-api-key"  # If using DeepSeek
+   export OPENAI_API_KEY="your-openai-api-key"
+   export DEEPSEEK_API_KEY="your-deepseek-api-key"
    export VIEWER_PORT="9090"  # Optional: Set custom port for Markdown viewer
    ```
 
@@ -181,13 +185,17 @@ If you prefer running in your local environment or need more customization contr
   },
   "llm": {
     "provider": "deepseek",
-    "api_key": "",
-    "model": "deepseek-reasoner",
     "temperature": 0.3,
     "providers": {
       "deepseek": {
         "base_url": "https://api.deepseek.com",
+        "api_key": "",
         "model": "deepseek-reasoner"
+      },
+      "openai": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "",
+        "model": "gpt-4"
       }
     }
   },

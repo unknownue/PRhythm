@@ -883,26 +883,28 @@ def call_llm_api(prompt, config, provider=None):
     # Get provider-specific configuration
     provider_config = config.get('llm', {}).get('providers', {}).get(provider, {})
     
-    # Get API key from provider config or fall back to default
+    # Get API key from provider config
     api_key = provider_config.get('api_key', '')
     if not api_key:
         # Try to get from environment variable
         env_var_name = f"{provider.upper()}_API_KEY"
         api_key = os.environ.get(env_var_name, '')
         
-        # Fall back to default LLM API key only if using the default provider
-        if not api_key and provider.lower() == config.get('llm', {}).get('provider', 'openai').lower():
-            api_key = config.get('llm', {}).get('api_key', '')
-            if not api_key:
-                api_key = os.environ.get('LLM_API_KEY', '')
+        # Fall back to default LLM API key
+        if not api_key:
+            api_key = os.environ.get('LLM_API_KEY', '')
     
     if not api_key:
         print(f"Error: API key for provider '{provider}' not found in configuration or environment variables")
-        print(f"Please set {provider.upper()}_API_KEY environment variable or configure it in config.yaml")
+        print(f"Please set {provider.upper()}_API_KEY environment variable or configure it in config.json")
         sys.exit(1)
     
-    # Get model from provider config or fall back to default
-    model = provider_config.get('model', config.get('llm', {}).get('model', 'gpt-4'))
+    # Get model from provider config
+    model = provider_config.get('model', '')
+    if not model:
+        print(f"Error: Model for provider '{provider}' not found in configuration")
+        print(f"Please configure model in config.json under llm.providers.{provider}")
+        sys.exit(1)
 
     # Get base URL from provider config
     base_url = provider_config.get('base_url', '')
