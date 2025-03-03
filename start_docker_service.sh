@@ -112,38 +112,7 @@ fi
 # Check environment variables
 echo -e "${YELLOW}Checking environment variables...${NC}"
 
-# Check if .env file exists, if not create it
-if [ ! -f .env ]; then
-    echo -e "${YELLOW}Creating .env file from .env.example...${NC}"
-    if [ -f .env.example ]; then
-        cp .env.example .env
-        echo -e "${YELLOW}Please edit .env file with your actual values.${NC}"
-        exit 1
-    else
-        echo -e "${RED}Error: .env.example file not found. Please create .env file manually.${NC}"
-        exit 1
-    fi
-fi
-
-# Source .env file
-set -a
-source .env
-set +a
-
-# Check required environment variables
-if [ -z "$GITHUB_TOKEN" ]; then
-    echo -e "${RED}Error: GITHUB_TOKEN environment variable is not set.${NC}"
-    echo -e "${YELLOW}Please set it in .env file or export it.${NC}"
-    exit 1
-fi
-
-if [ -z "$LLM_API_KEY" ]; then
-    echo -e "${RED}Error: LLM_API_KEY environment variable is not set.${NC}"
-    echo -e "${YELLOW}Please set it in .env file or export it.${NC}"
-    exit 1
-fi
-
-# Check if config.yaml exists
+# Check if config.yaml file exists, if not create it
 if [ ! -f config.yaml ]; then
     echo -e "${YELLOW}Creating config.yaml from config.example.yaml...${NC}"
     if [ -f config.example.yaml ]; then
@@ -154,6 +123,19 @@ if [ ! -f config.yaml ]; then
         echo -e "${RED}Error: config.example.yaml file not found. Please create config.yaml file manually.${NC}"
         exit 1
     fi
+fi
+
+# Check required environment variables
+if [ -z "$GITHUB_TOKEN" ]; then
+    echo -e "${RED}Error: GITHUB_TOKEN environment variable is not set.${NC}"
+    echo -e "${YELLOW}Please set it in config.yaml or export it as an environment variable.${NC}"
+    exit 1
+fi
+
+if [ -z "$LLM_API_KEY" ]; then
+    echo -e "${RED}Error: LLM_API_KEY environment variable is not set.${NC}"
+    echo -e "${YELLOW}Please set it in config.yaml or export it as an environment variable.${NC}"
+    exit 1
 fi
 
 # Get viewer port from config.yaml
@@ -215,13 +197,6 @@ fi
 
 # Start Docker service
 echo -e "${YELLOW}Starting Docker service with port ${VIEWER_PORT}...${NC}"
-
-# Create a temporary .env file with the VIEWER_PORT
-echo "VIEWER_PORT=${VIEWER_PORT}" > .env.tmp
-if [ -f .env ]; then
-    cat .env >> .env.tmp
-fi
-mv .env.tmp .env
 
 # Change to docker directory
 cd docker

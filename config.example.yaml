@@ -1,13 +1,20 @@
 # PRhythm Configuration Example
 
+# General settings
+general:
+  timezone: "Asia/Shanghai"    # Timezone for date/time operations
+
 # GitHub repositories to monitor
 github:
   repositories:
     - owner/repo1
     - owner/repo2
   check_interval: 3600  # in seconds (1 hour)
-  # GitHub token for authentication (recommended to set via environment variable GITHUB_TOKEN)
-  token: ""  # Set via environment variable GITHUB_TOKEN instead of here
+  # GitHub token for authentication
+  # Option 1: Set directly here (not recommended for production)
+  # token: "your-github-token-here"
+  # Option 2: Set via environment variable (recommended)
+  token: ""  # Will use GITHUB_TOKEN environment variable if empty
   # Optional: filter PRs by labels
   # include_labels:
   #   - feature
@@ -20,7 +27,10 @@ github:
 llm:
   # Default provider configuration
   provider: "openai"  # or "anthropic", "deepseek", etc.
-  api_key: ""  # Set via environment variable LLM_API_KEY instead of here
+  # Option 1: Set API key directly here (not recommended for production)
+  # api_key: "your-llm-api-key-here"
+  # Option 2: Set via environment variable (recommended)
+  api_key: ""  # Will use LLM_API_KEY environment variable if empty
   model: "gpt-4"  # or "claude-3-opus", etc.
   temperature: 0.3
   
@@ -32,28 +42,12 @@ llm:
     
     deepseek:
       base_url: "https://api.deepseek.com"
-      api_key: ""  # Set via environment variable DEEPSEEK_API_KEY instead of here
+      # Option 1: Set API key directly here (not recommended for production)
+      # api_key: "your-deepseek-api-key-here"
+      # Option 2: Set via environment variable (recommended)
+      api_key: ""  # Will use DEEPSEEK_API_KEY environment variable if empty
       model: "deepseek-chat"  # Available models: deepseek-chat (DeepSeek-V3), deepseek-reasoner (DeepSeek-R1)
   
-  # Analysis prompt template - variables: {title}, {number}, {description}, {diff}
-  prompt_template: |
-    Analyze the following GitHub Pull Request:
-    
-    Title: {title}
-    PR #{number}
-    
-    Description:
-    {description}
-    
-    Code Changes:
-    {diff}
-    
-    Please provide:
-    1. A summary of the changes
-    2. The main purpose of this PR
-    3. Potential impact on the codebase
-    4. Any notable implementation details
-
 # Output configuration
 output:
   # Primary language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
@@ -72,32 +66,9 @@ output:
   
   # Additional output formatting options can be added here
 
-# Publishing configuration
-publishing:
-  platform: "notion"  # or "wordpress", "custom", etc.
-  api_key: ""  # Set via environment variable NOTION_API_KEY instead of here
-  target_page_id: ""  # Notion page ID where reports will be published
-  # Optional: template for report formatting
-  report_template: |
-    # PR Analysis: {title} (#{number})
-    
-    **Merged on:** {merge_date}
-    **Author:** {author}
-    
-    ## Summary
-    {summary}
-    
-    ## Details
-    {details}
-    
-    ## Code Changes
-    {code_changes}
-    
-    ---
-    *Analyzed by PRhythm* 
-
 # Viewer configuration
 viewer:
-  enabled: true  # Enable or disable the Markdown viewer
-  port: 8080     # Port to use for the Markdown viewer
-  debug: false   # Enable debug mode for the Flask application 
+  enabled: true                # Enable or disable the Markdown viewer
+  port: 8080                   # Port to use for the Markdown viewer
+  debug: false                 # Enable debug mode for the Flask application
+  analysis_dir: "./analysis"   # Directory where analysis reports are stored 

@@ -11,9 +11,9 @@ services:
     ports:
       - "${VIEWER_PORT:-9090}:${VIEWER_PORT:-9090}"  # Expose port for the Markdown viewer (default to 9090)
     environment:
-      - TZ=UTC
+      - TZ=${TZ:-UTC}
       - PYTHONUNBUFFERED=1  # Disable Python output buffering to ensure real-time logging
-      # Add any additional environment variables here
+      # Pass environment variables from shell to container
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - LLM_API_KEY=${LLM_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}

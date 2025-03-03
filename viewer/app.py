@@ -37,7 +37,8 @@ def load_config():
         'viewer': {
             'enabled': True,
             'port': 9090,
-            'debug': False
+            'debug': False,
+            'analysis_dir': './analysis'
         }
     }
     
@@ -49,12 +50,24 @@ def load_config():
             # Ensure viewer config exists
             if 'viewer' not in config:
                 config['viewer'] = default_config['viewer']
-            else:
-                # Fill in missing values with defaults
-                for key, value in default_config['viewer'].items():
-                    if key not in config['viewer']:
-                        config['viewer'][key] = value
-            
+            elif 'analysis_dir' not in config['viewer']:
+                config['viewer']['analysis_dir'] = default_config['viewer']['analysis_dir']
+                
+            # Update ANALYSIS_DIR from config if specified
+            global ANALYSIS_DIR
+            config_analysis_dir = config['viewer'].get('analysis_dir')
+            if config_analysis_dir:
+                # Handle relative paths
+                if not os.path.isabs(config_analysis_dir):
+                    if os.path.exists('/app'):  # Docker environment
+                        config_analysis_dir = os.path.join('/app', config_analysis_dir)
+                    else:
+                        config_analysis_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), config_analysis_dir)
+                
+                if os.path.exists(config_analysis_dir):
+                    ANALYSIS_DIR = config_analysis_dir
+                    print(f"Using analysis directory from config: {ANALYSIS_DIR}")
+                
             return config
         except Exception as e:
             print(f"Error loading config: {e}")
