@@ -20,7 +20,7 @@ Usage:
 
 import os
 import sys
-import yaml
+import json
 import time
 import subprocess
 import re
@@ -34,10 +34,13 @@ import logging
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('update_pr_reports.log')
+    ]
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('update_pr_reports')
 
 def parse_arguments():
     """
@@ -66,7 +69,7 @@ def read_config(config_path):
     """
     try:
         with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
+            config = json.load(file)
             return config
     except Exception as e:
         logger.error(f"Error reading configuration file: {e}")
@@ -96,15 +99,24 @@ def get_output_language_from_config(config):
         config: Configuration dictionary
         
     Returns:
-        str: Output language code
+        str: Output language code or "multilingual" if multiple languages are configured
     """
-    if not config or 'output' not in config or 'language' not in config['output']:
-        logger.warning("Output language not specified in config.yaml, defaulting to English (en)")
+    if not config or 'output' not in config or 'languages' not in config['output']:
+        logger.warning("Output languages not specified in config.json, defaulting to English (en)")
         return "en"
     
-    language = config['output']['language']
-    logger.info(f"Using output language from config.yaml: {language}")
-    return language
+    languages = config['output']['languages']
+    if not languages:
+        logger.warning("Empty languages list in config.json, defaulting to English (en)")
+        return "en"
+    
+    if len(languages) > 1:
+        logger.info(f"Multiple languages configured in config.json: {', '.join(languages)}")
+        return "multilingual"
+    else:
+        language = languages[0]
+        logger.info(f"Using output language from config.json: {language}")
+        return language
 
 def get_provider_from_config(config):
     """
@@ -227,7 +239,7 @@ def update_pr_reports():
         return 1
     
     # 2. Read configuration
-    config_path = project_root / "config.yaml"
+    config_path = project_root / "config.json"
     config = read_config(config_path)
     if not config:
         logger.error("Failed to read configuration")

@@ -7,10 +7,9 @@ that indicates the latest processed PR number for batch operations.
 This script also outputs unsynchronized merged PRs.
 """
 
-import yaml
+import json
 import sys
 import os
-import json
 import argparse
 import requests
 import re
@@ -33,7 +32,7 @@ def read_config(config_path):
     """
     try:
         with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
+            config = json.load(file)
             return config
     except Exception as e:
         print(f"Error reading configuration file: {e}")

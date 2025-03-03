@@ -20,7 +20,7 @@ import os
 import pygments
 from pygments.formatters import HtmlFormatter
 import datetime
-import yaml
+import json
 import re
 
 app = Flask(__name__)
@@ -36,8 +36,8 @@ print(f"Using analysis directory: {ANALYSIS_DIR}")
 
 # Load configuration
 def load_config():
-    """Load configuration from config.yaml file."""
-    config_path = os.path.join('/app', 'config.yaml')
+    """Load configuration from config.json file."""
+    config_path = os.path.join('/app', 'config.json')
     default_config = {
         'viewer': {
             'enabled': True,
@@ -50,7 +50,7 @@ def load_config():
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
+                config = json.load(f)
             
             # Ensure viewer config exists
             if 'viewer' not in config:

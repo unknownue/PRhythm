@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Check and clone tracked repositories from config.yaml to output directories
+Check and clone tracked repositories from config.json to output directories
 """
 
-import yaml
+import json
 import sys
 import os
 import subprocess
@@ -24,7 +24,7 @@ def read_config(config_path):
     """
     try:
         with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
+            config = json.load(file)
             return config
     except Exception as e:
         print(f"Error reading configuration file: {e}")
@@ -121,7 +121,7 @@ def main():
     project_root = script_dir.parent
     
     # Configuration file path
-    config_path = project_root / "config.yaml"
+    config_path = project_root / "config.json"
     
     # Read configuration
     config = read_config(config_path)

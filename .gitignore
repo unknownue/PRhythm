@@ -43,8 +43,8 @@ analysis/
 
 # Secrets and Configuration
 .env
-config.yaml
-# Keep config.example.yaml as a template 
+config.json
+# Keep config.example.json as a template for users
 
 
 test.sh

@@ -28,9 +28,9 @@ Docker deployment provides an isolated environment and simplified setup process,
    cd PRhythm
    
    # Create and edit configuration file
-   cp config.example.yaml config.yaml
-   # Edit config.yaml with your preferred editor
-   # Set your API tokens in config.yaml:
+   cp config.example.json config.json
+   # Edit config.json with your preferred editor
+   # Set your API tokens in config.json:
    # - github.token: Your GitHub API token
    # - llm.api_key: Your LLM API key
    # - llm.providers.deepseek.api_key: Your DeepSeek API key (if using DeepSeek)
@@ -38,18 +38,21 @@ Docker deployment provides an isolated environment and simplified setup process,
 
 2. **Set API tokens (choose one method)**:
    
-   **Option A: Set in config.yaml (recommended)**
-   ```yaml
-   # In config.yaml:
-   github:
-     token: "your-github-token-here"
-   
-   llm:
-     api_key: "your-llm-api-key-here"
-     
-     providers:
-       deepseek:
-         api_key: "your-deepseek-api-key-here"
+   **Option A: Set in config.json (recommended)**
+   ```json
+   {
+     "github": {
+       "token": "your-github-token-here"
+     },
+     "llm": {
+       "api_key": "your-llm-api-key-here",
+       "providers": {
+         "deepseek": {
+           "api_key": "your-deepseek-api-key-here"
+         }
+       }
+     }
+   }
    ```
    
    **Option B: Set as environment variables**
@@ -111,9 +114,9 @@ If you prefer running in your local environment or need more customization contr
 2. **Prepare configuration**:
    ```bash
    # Create and edit configuration file
-   cp config.example.yaml config.yaml
-   # Edit config.yaml with your preferred editor
-   # Set your API tokens in config.yaml:
+   cp config.example.json config.json
+   # Edit config.json with your preferred editor
+   # Set your API tokens in config.json:
    # - github.token: Your GitHub API token
    # - llm.api_key: Your LLM API key
    # - llm.providers.deepseek.api_key: Your DeepSeek API key (if using DeepSeek)
@@ -121,18 +124,21 @@ If you prefer running in your local environment or need more customization contr
 
 3. **Set API tokens (choose one method)**:
    
-   **Option A: Set in config.yaml (recommended)**
-   ```yaml
-   # In config.yaml:
-   github:
-     token: "your-github-token-here"
-   
-   llm:
-     api_key: "your-llm-api-key-here"
-     
-     providers:
-       deepseek:
-         api_key: "your-deepseek-api-key-here"
+   **Option A: Set in config.json (recommended)**
+   ```json
+   {
+     "github": {
+       "token": "your-github-token-here"
+     },
+     "llm": {
+       "api_key": "your-llm-api-key-here",
+       "providers": {
+         "deepseek": {
+           "api_key": "your-deepseek-api-key-here"
+         }
+       }
+     }
+   }
    ```
    
    **Option B: Set as environment variables**
@@ -161,30 +167,34 @@ If you prefer running in your local environment or need more customization contr
 
 ### Configuration File
 
-`config.yaml` is the core configuration file for PRhythm, containing the following main sections:
+`config.json` is the core configuration file for PRhythm, containing the following main sections:
 
-```yaml
-github:
-  repositories:
-    - owner/repo1
-    - owner/repo2
-  check_interval: 3600  # Check interval in seconds
-  token: ""  # Recommended to set via GITHUB_TOKEN environment variable
-
-llm:
-  provider: "deepseek"  # Options: openai, deepseek, etc.
-  api_key: ""  # Recommended to set via environment variable
-  model: "deepseek-reasoner"  # Or gpt-4, deepseek-chat, etc.
-  temperature: 0.3
-  
-  providers:
-    deepseek:
-      base_url: "https://api.deepseek.com"
-      model: "deepseek-reasoner"  # Available models: deepseek-chat, deepseek-reasoner
-
-# Output configuration
-output:
-  language: "en"  # Output language for analysis reports: "en" (English), "zh-cn" (Chinese), etc.
+```json
+{
+  "github": {
+    "repositories": [
+      "owner/repo1",
+      "owner/repo2"
+    ],
+    "check_interval": 3600,
+    "token": ""
+  },
+  "llm": {
+    "provider": "deepseek",
+    "api_key": "",
+    "model": "deepseek-reasoner",
+    "temperature": 0.3,
+    "providers": {
+      "deepseek": {
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-reasoner"
+      }
+    }
+  },
+  "output": {
+    "languages": ["en"]
+  }
+}
 ```
 
 ### Common Commands
@@ -319,13 +329,18 @@ You can customize the analysis prompt template by editing the `prompt/analyze_pr
 
 ### Adding New LLM Providers
 
-To add a new LLM provider, add the corresponding configuration to the `llm.providers` section in `config.yaml`:
+To add a new LLM provider, add the corresponding configuration to the `llm.providers` section in `config.json`:
 
-```yaml
-llm:
-  providers:
-    new_provider:
-      base_url: "https://api.new-provider.com"
-      api_key: ""  # Recommended to set via environment variable
-      model: "model-name"
+```json
+{
+  "llm": {
+    "providers": {
+      "new_provider": {
+        "base_url": "https://api.new-provider.com",
+        "api_key": "",
+        "model": "model-name"
+      }
+    }
+  }
+}
 ``` 

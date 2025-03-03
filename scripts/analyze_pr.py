@@ -12,7 +12,6 @@ import sys
 import os
 import argparse
 import requests
-import yaml
 import re
 import subprocess
 from pathlib import Path
@@ -30,7 +29,7 @@ def read_config(config_path):
     """
     try:
         with open(config_path, 'r') as file:
-            config = yaml.safe_load(file)
+            config = json.load(file)
             return config
     except Exception as e:
         print(f"Error reading configuration file: {e}")
@@ -1087,7 +1086,7 @@ def parse_arguments():
     parser.add_argument('--repo', help='Repository name (owner/repo) - used to find the latest PR JSON file if --json is not specified')
     parser.add_argument('--pr', type=int, help='PR number - used to find the latest PR JSON file if --json is not specified')
     parser.add_argument('--language', default='', help='Output language (e.g., en, zh-cn, multilingual)')
-    parser.add_argument('--config', default='config.yaml', help='Path to the configuration file')
+    parser.add_argument('--config', default='config.json', help='Path to the configuration file')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
     parser.add_argument('--dry-run', action='store_true', help='Only print the prompt without sending the request')
     parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
@@ -1195,10 +1194,11 @@ def main():
     output_language = args.language
     if not output_language:
         # Use configuration setting if not specified in command line
-        if config.get('output', {}).get('multilingual', False):
+        languages = config.get('output', {}).get('languages', ['en'])
+        if len(languages) > 1:
             output_language = "multilingual"
         else:
-            output_language = config.get('output', {}).get('primary_language', 'en')
+            output_language = languages[0] if languages else 'en'
     
     # Prepare prompt
     prompt = prepare_prompt(pr_data, prompt_template, output_language)
@@ -1236,7 +1236,7 @@ def main():
     # Save analysis report(s)
     if output_language == "multilingual":
         # Get languages from config
-        languages = config.get('output', {}).get('languages', ['en', 'zh-cn'])
+        languages = config.get('output', {}).get('languages', ['en'])
         
         # Save multilingual reports
         file_paths = save_multilingual_reports(report, pr_data, output_dir, languages)

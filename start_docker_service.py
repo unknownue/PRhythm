@@ -10,7 +10,7 @@ import os
 import sys
 import subprocess
 import argparse
-import yaml
+import json
 import shutil
 from pathlib import Path
 
@@ -26,7 +26,7 @@ os.chdir(SCRIPT_DIR)
 
 def print_color(color, message):
     """Print colored message"""
-    print(f"{color}{message}{NC}")
+    print(f"{color}{message}\033[0m")
 
 def command_exists(command):
     """Check if a command exists"""
@@ -46,10 +46,10 @@ def display_usage():
     print("  -l, --llm-key KEY  Specify LLM API key directly")
     print("  -d, --deepseek-key KEY  Specify DeepSeek API key directly")
     print_color(YELLOW, "\nEnvironment Variables:")
-    print("  GITHUB_TOKEN     GitHub API token (can also be set in config.yaml)")
-    print("  LLM_API_KEY      LLM API key (can also be set in config.yaml)")
-    print("  DEEPSEEK_API_KEY DeepSeek API key (can also be set in config.yaml)")
-    print("  VIEWER_PORT      Port for the Markdown viewer (overrides config.yaml)")
+    print("  GITHUB_TOKEN     GitHub API token (can also be set in config.json)")
+    print("  LLM_API_KEY      LLM API key (can also be set in config.json)")
+    print("  DEEPSEEK_API_KEY DeepSeek API key (can also be set in config.json)")
+    print("  VIEWER_PORT      Port for the Markdown viewer (overrides config.json)")
 
 def run_command(command, shell=False, check=True, capture_output=False):
     """Run a shell command and handle errors"""
@@ -90,20 +90,20 @@ def check_prerequisites():
         sys.exit(1)
 
 def check_config_file():
-    """Check if config.yaml exists, if not create it from example"""
-    if not os.path.isfile("config.yaml"):
-        print_color(YELLOW, "Creating config.yaml from config.example.yaml...")
-        if os.path.isfile("config.example.yaml"):
-            shutil.copy("config.example.yaml", "config.yaml")
-            print_color(YELLOW, "Please edit config.yaml with your actual values.")
+    """Check if config.json exists, if not create it from example"""
+    if not os.path.isfile("config.json"):
+        print_color(YELLOW, "Creating config.json from config.example.json...")
+        if os.path.isfile("config.example.json"):
+            shutil.copy("config.example.json", "config.json")
+            print_color(YELLOW, "Please edit config.json with your actual values.")
             sys.exit(1)
         else:
-            print_color(RED, "Error: config.example.yaml file not found. Please create config.yaml file manually.")
+            print_color(RED, "Error: config.example.json file not found. Please create config.json file manually.")
             sys.exit(1)
 
 def read_token_from_config(token_path):
     """
-    Read token from config.yaml using a path specification
+    Read token from config.json using a path specification
     
     Args:
         token_path: List of keys to navigate to the token in the config
@@ -113,8 +113,8 @@ def read_token_from_config(token_path):
         The token string if found and valid, None otherwise
     """
     try:
-        with open('config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
+        with open('config.json', 'r') as f:
+            config = json.load(f)
         
         # Navigate through the config dictionary using the path
         current = config
@@ -133,10 +133,10 @@ def read_token_from_config(token_path):
     return None
 
 def get_viewer_port_from_config():
-    """Get viewer port from config.yaml"""
+    """Get viewer port from config.json"""
     try:
-        with open('config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
+        with open('config.json', 'r') as f:
+            config = json.load(f)
         
         if 'viewer' in config and 'port' in config['viewer']:
             return str(config['viewer']['port'])
@@ -146,20 +146,20 @@ def get_viewer_port_from_config():
     return "9090"  # Default port
 
 def update_config_with_port(port):
-    """Update config.yaml with the custom port"""
+    """Update config.json with the custom port"""
     try:
-        with open('config.yaml', 'r') as f:
-            config = yaml.safe_load(f) or {}
+        with open('config.json', 'r') as f:
+            config = json.load(f) or {}
         
         if 'viewer' not in config:
             config['viewer'] = {'enabled': True, 'port': int(port), 'debug': False}
         else:
             config['viewer']['port'] = int(port)
         
-        with open('config.yaml', 'w') as f:
-            yaml.dump(config, f, default_flow_style=False)
+        with open('config.json', 'w') as f:
+            json.dump(config, f, indent=2)
     except Exception as e:
-        print_color(YELLOW, f"Warning: Could not update config.yaml: {e}")
+        print_color(YELLOW, f"Warning: Could not update config.json: {e}")
 
 def check_port_in_use(port):
     """Check if the port is already in use"""
@@ -206,7 +206,7 @@ def main():
     # Check environment variables
     print_color(YELLOW, "Checking environment variables...")
     
-    # Check if config.yaml file exists
+    # Check if config.json file exists
     check_config_file()
     
     # Define token configurations
@@ -237,16 +237,16 @@ def main():
         env_var = config['env_var']
         token_value = os.environ.get(env_var)
         
-        # Read from config.yaml if not set in environment and not provided as argument
+        # Read from config.json if not set in environment and not provided as argument
         if not token_value and not config['arg_value']:
-            print_color(YELLOW, f"Attempting to read {config['name']} from config.yaml...")
+            print_color(YELLOW, f"Attempting to read {config['name']} from config.json...")
             config_token = read_token_from_config(config['config_path'])
             if config_token:
                 os.environ[env_var] = config_token
                 token_value = config_token
-                print_color(YELLOW, f"Using {config['name']} from config.yaml")
+                print_color(YELLOW, f"Using {config['name']} from config.json")
             else:
-                print_color(YELLOW, f"No valid {config['name']} found in config.yaml")
+                print_color(YELLOW, f"No valid {config['name']} found in config.json")
         
         # Use command line value if provided
         if config['arg_value']:
@@ -259,12 +259,12 @@ def main():
     # Check required environment variables
     if not tokens['GITHUB_TOKEN']:
         print_color(RED, "Error: GITHUB_TOKEN is not set.")
-        print_color(YELLOW, "Please set it in config.yaml, as an environment variable, or use --github-token option.")
+        print_color(YELLOW, "Please set it in config.json, as an environment variable, or use --github-token option.")
         sys.exit(1)
     
     if not tokens['LLM_API_KEY']:
         print_color(RED, "Error: LLM_API_KEY is not set.")
-        print_color(YELLOW, "Please set it in config.yaml, as an environment variable, or use --llm-key option.")
+        print_color(YELLOW, "Please set it in config.json, as an environment variable, or use --llm-key option.")
         sys.exit(1)
     
     # Get viewer port
@@ -280,18 +280,18 @@ def main():
         os.environ['VIEWER_PORT'] = args.port
         viewer_port = args.port
         
-        # Update config.yaml with the custom port
+        # Update config.json with the custom port
         update_config_with_port(args.port)
     else:
-        # Use port from config.yaml
-        print_color(YELLOW, f"Using port from config.yaml: {config_port}")
+        # Use port from config.json
+        print_color(YELLOW, f"Using port from config.json: {config_port}")
         os.environ['VIEWER_PORT'] = config_port
         viewer_port = config_port
     
     # Check if port is already in use
     if check_port_in_use(viewer_port):
         print_color(RED, f"Error: Port {viewer_port} is already in use.")
-        print_color(YELLOW, "You can specify a different port with --port option or by changing the viewer.port value in config.yaml.")
+        print_color(YELLOW, "You can specify a different port with --port option or by changing the viewer.port value in config.json.")
         print_color(YELLOW, "Alternatively, you can run:")
         print("  ./viewer/change_port.sh <new_port>")
         sys.exit(1)
