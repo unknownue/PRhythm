@@ -220,7 +220,7 @@ def main():
         {
             'name': 'LLM API key',
             'env_var': 'LLM_API_KEY',
-            'config_path': ['llm', 'api_key'],
+            'config_path': ['llm', 'providers', 'openai', 'api_key'],
             'arg_value': args.llm_key
         },
         {
@@ -246,7 +246,22 @@ def main():
                 token_value = config_token
                 print_color(YELLOW, f"Using {config['name']} from config.json")
             else:
-                print_color(YELLOW, f"No valid {config['name']} found in config.json")
+                # For LLM API key, try to get from the current provider
+                if env_var == 'LLM_API_KEY':
+                    # Get current provider
+                    provider = read_token_from_config(['llm', 'provider'])
+                    if provider:
+                        provider_api_key = read_token_from_config(['llm', 'providers', provider, 'api_key'])
+                        if provider_api_key:
+                            os.environ[env_var] = provider_api_key
+                            token_value = provider_api_key
+                            print_color(YELLOW, f"Using {config['name']} from current provider ({provider}) in config.json")
+                        else:
+                            print_color(YELLOW, f"No valid {config['name']} found for provider {provider} in config.json")
+                    else:
+                        print_color(YELLOW, f"No valid provider found in config.json")
+                else:
+                    print_color(YELLOW, f"No valid {config['name']} found in config.json")
         
         # Use command line value if provided
         if config['arg_value']:
@@ -264,7 +279,11 @@ def main():
     
     if not tokens['LLM_API_KEY']:
         print_color(RED, "Error: LLM_API_KEY is not set.")
-        print_color(YELLOW, "Please set it in config.json, as an environment variable, or use --llm-key option.")
+        provider = read_token_from_config(['llm', 'provider'])
+        if provider:
+            print_color(YELLOW, f"Please set it in config.json under llm.providers.{provider}.api_key, as an environment variable, or use --llm-key option.")
+        else:
+            print_color(YELLOW, "Please set it in config.json under llm.providers.[provider].api_key, as an environment variable, or use --llm-key option.")
         sys.exit(1)
     
     # Get viewer port
