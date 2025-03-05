@@ -26,13 +26,17 @@
       }
     }
   },
+  "paths": {
+    "repos_dir": "./repos",
+    "output_dir": "./output",
+    "analysis_dir": "./analysis"
+  },
   "output": {
     "languages": ["en"]
   },
   "viewer": {
     "enabled": true,
     "port": 8080,
-    "debug": false,
-    "analysis_dir": "./analysis"
+    "debug": false
   }
 } 

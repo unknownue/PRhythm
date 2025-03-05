@@ -190,22 +190,30 @@ def extract_pr_numbers(output):
             pr_numbers.append(match.group(1))
     return pr_numbers
 
-def find_pr_json_file(repo_name, pr_number):
+def find_pr_json_file(repo_name, pr_number, config):
     """
     Find the latest PR JSON file for a given PR number
     
     Args:
         repo_name: Repository name
         pr_number: PR number
+        config: Configuration dictionary
         
     Returns:
         str: Path to the PR JSON file or None if not found
     """
+    # Get output directory from config or use default
+    output_base_dir = config.get('paths', {}).get('output_dir', './output')
+    
+    # Remove leading ./ if present
+    if output_base_dir.startswith('./'):
+        output_base_dir = output_base_dir[2:]
+    
     # Get current year-month
     current_month = datetime.now().strftime("%Y-%m")
     
     # First search in the monthly directory
-    monthly_pattern = f"output/{repo_name}/{current_month}/pr_{pr_number}_*.json"
+    monthly_pattern = f"{output_base_dir}/{repo_name}/{current_month}/pr_{pr_number}_*.json"
     monthly_files = glob.glob(monthly_pattern)
     
     if monthly_files:
@@ -213,7 +221,7 @@ def find_pr_json_file(repo_name, pr_number):
         return sorted(monthly_files, key=os.path.getmtime, reverse=True)[0]
     
     # If not found in monthly directory, search in main directory
-    main_pattern = f"output/{repo_name}/pr_{pr_number}_*.json"
+    main_pattern = f"{output_base_dir}/{repo_name}/pr_{pr_number}_*.json"
     main_files = glob.glob(main_pattern)
     
     if main_files:
@@ -297,7 +305,7 @@ def update_pr_reports():
             
             # Get the latest PR information JSON file
             repo_name = repo.split("/")[1] if "/" in repo else repo
-            pr_json = find_pr_json_file(repo_name, pr_number)
+            pr_json = find_pr_json_file(repo_name, pr_number, config)
             
             if not pr_json:
                 logger.error("Error: Cannot find JSON file for PR #%s, skipping analysis", pr_number)

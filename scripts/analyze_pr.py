@@ -1094,14 +1094,15 @@ def parse_arguments():
     parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
     return parser.parse_args()
 
-def find_latest_pr_json(project_root, repo, pr_number):
+def find_latest_pr_json(project_root, repo, pr_number, config):
     """
-    Find the latest PR JSON file for a given repository and PR number
+    Find the latest PR JSON file for the specified repository and PR number
     
     Args:
         project_root: Project root directory
         repo: Repository name (owner/repo)
         pr_number: PR number
+        config: Configuration dictionary
         
     Returns:
         Path: Path to the latest PR JSON file, or None if not found
@@ -1109,8 +1110,17 @@ def find_latest_pr_json(project_root, repo, pr_number):
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
     
+    # Get output directory from config or use default
+    output_base_dir = config.get('paths', {}).get('output_dir', './output')
+    
+    # Convert relative path to absolute if needed
+    if output_base_dir.startswith('./') or output_base_dir.startswith('../'):
+        output_dir = project_root / output_base_dir.lstrip('./')
+    else:
+        output_dir = Path(output_base_dir)
+    
     # Base output directory for fetch_pr_info.py
-    output_dir = project_root / "output" / repo_name
+    output_dir = output_dir / repo_name
     
     if not output_dir.exists():
         return None
@@ -1151,25 +1161,24 @@ def main():
     config_path = project_root / args.config
     config = read_config(config_path)
     
-    # Determine JSON file path
-    json_file_path = None
-    
-    if args.json:
-        # User specified a JSON file path
-        json_file_path = Path(args.json)
-        if not json_file_path.is_absolute():
-            json_file_path = project_root / json_file_path
-    elif args.repo and args.pr:
-        # Try to find the latest PR JSON file
-        json_file_path = find_latest_pr_json(project_root, args.repo, args.pr)
-        if not json_file_path:
-            print(f"Error: Could not find PR JSON file for repository {args.repo} and PR #{args.pr}")
-            print("Please run fetch_pr_info.py first or specify the JSON file path using --json")
+    # If PR JSON file path is not provided, try to find the latest one
+    if not args.json:
+        if not args.repo or not args.pr:
+            print("Error: Either --json or both --repo and --pr must be provided")
             sys.exit(1)
-        print(f"Using latest PR JSON file: {json_file_path}")
+            
+        # Find the latest PR JSON file
+        json_file_path = find_latest_pr_json(project_root, args.repo, args.pr, config)
+        
+        if not json_file_path:
+            print(f"Error: No PR JSON file found for repository {args.repo} and PR #{args.pr}")
+            sys.exit(1)
     else:
-        print("Error: Either --json or both --repo and --pr must be specified")
-        sys.exit(1)
+        json_file_path = Path(args.json)
+        
+        if not json_file_path.exists():
+            print(f"Error: PR JSON file {json_file_path} does not exist")
+            sys.exit(1)
     
     # Read PR data
     pr_data = read_pr_data(json_file_path)
@@ -1231,9 +1240,17 @@ def main():
     # Call LLM API
     report = call_llm_api(prompt, config, args.provider)
     
+    # Get analysis directory from config or use default
+    analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+    
+    # Convert relative path to absolute if needed
+    if analysis_base_dir.startswith('./') or analysis_base_dir.startswith('../'):
+        analysis_dir = project_root / analysis_base_dir.lstrip('./')
+    else:
+        analysis_dir = Path(analysis_base_dir)
+    
     # Create output directory
-    output_dir = project_root / "analysis"
-    output_dir.mkdir(exist_ok=True)
+    analysis_dir.mkdir(exist_ok=True, parents=True)
     
     # Save analysis report(s)
     if output_language == "multilingual":
@@ -1241,14 +1258,14 @@ def main():
         languages = config.get('output', {}).get('languages', ['en'])
         
         # Save multilingual reports
-        file_paths = save_multilingual_reports(report, pr_data, output_dir, languages)
+        file_paths = save_multilingual_reports(report, pr_data, analysis_dir, languages)
         
         print(f"Multilingual analysis reports saved to:")
         for path in file_paths:
             print(f"- {path}")
     else:
         # Save single language report
-        file_path = save_analysis_report(report, pr_data, output_dir, output_language)
+        file_path = save_analysis_report(report, pr_data, analysis_dir, output_language)
         print(f"Analysis report saved to: {file_path}")
 
 if __name__ == "__main__":

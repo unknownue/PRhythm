@@ -36,16 +36,21 @@ print(f"Using analysis directory: {ANALYSIS_DIR}")
 
 # Load configuration
 def load_config():
-    """Load configuration from config.json file."""
-    config_path = os.path.join('/app', 'config.json')
+    """Load configuration from config.json"""
+    # Default configuration
     default_config = {
         'viewer': {
-            'enabled': True,
-            'port': 9090,
-            'debug': False,
+            'port': 8080,
+            'debug': False
+        },
+        'paths': {
             'analysis_dir': './analysis'
         }
     }
+    
+    # Try to load configuration from file
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+    config = default_config
     
     if os.path.exists(config_path):
         try:
@@ -55,12 +60,16 @@ def load_config():
             # Ensure viewer config exists
             if 'viewer' not in config:
                 config['viewer'] = default_config['viewer']
-            elif 'analysis_dir' not in config['viewer']:
-                config['viewer']['analysis_dir'] = default_config['viewer']['analysis_dir']
+            
+            # Ensure paths config exists
+            if 'paths' not in config:
+                config['paths'] = default_config['paths']
+            elif 'analysis_dir' not in config['paths']:
+                config['paths']['analysis_dir'] = default_config['paths']['analysis_dir']
                 
             # Update ANALYSIS_DIR from config if specified
             global ANALYSIS_DIR
-            config_analysis_dir = config['viewer'].get('analysis_dir')
+            config_analysis_dir = config['paths'].get('analysis_dir')
             if config_analysis_dir:
                 # Handle relative paths
                 if not os.path.isabs(config_analysis_dir):
@@ -69,17 +78,19 @@ def load_config():
                     else:
                         config_analysis_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), config_analysis_dir)
                 
-                if os.path.exists(config_analysis_dir):
-                    ANALYSIS_DIR = config_analysis_dir
-                    print(f"Using analysis directory from config: {ANALYSIS_DIR}")
+                ANALYSIS_DIR = config_analysis_dir
                 
-            return config
+            # Get port from config
+            PORT = config['viewer'].get('port', 8080)
+            DEBUG = config['viewer'].get('debug', False)
+            
+            return config, PORT, DEBUG
+            
         except Exception as e:
-            print(f"Error loading config: {e}")
-            return default_config
+            print(f"Error loading configuration: {e}")
+            return default_config, 8080, False
     else:
-        print(f"Config file not found at {config_path}, using defaults")
-        return default_config
+        return default_config, 8080, False
 
 # Configure Markdown extensions with improved code block handling
 markdown_extensions = [
@@ -239,13 +250,9 @@ if __name__ == '__main__':
         f.write(formatter.get_style_defs('.codehilite'))
     
     # Load configuration
-    config = load_config()
+    config, PORT, DEBUG = load_config()
     
-    # Get port from config, environment variable, or use default
-    port = int(os.environ.get('VIEWER_PORT', config['viewer']['port']))
-    debug = os.environ.get('VIEWER_DEBUG', str(config['viewer']['debug'])).lower() in ('true', '1', 'yes')
-    
-    print(f"Starting Markdown viewer on http://0.0.0.0:{port}")
+    print(f"Starting Markdown viewer on http://0.0.0.0:{PORT}")
     
     # Run the Flask application
-    app.run(host='0.0.0.0', port=port, debug=debug) 
+    app.run(host='0.0.0.0', port=PORT, debug=DEBUG) 

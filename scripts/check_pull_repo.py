@@ -30,40 +30,41 @@ def read_config(config_path):
         print(f"Error reading configuration file: {e}")
         return None
 
-def create_output_dirs(project_root, repositories):
+def create_output_dirs(project_root, repositories, config):
     """
     Create output directories for each tracked repository
     
     Args:
         project_root: Project root directory
         repositories: List of repositories to track
+        config: Configuration dictionary
         
     Returns:
         dict: Mapping of repository names to their output directories
     """
+    # Get repos directory from config or use default
+    repos_base_dir = config.get('paths', {}).get('repos_dir', './repos')
+    
+    # Convert relative path to absolute if needed
+    if repos_base_dir.startswith('./') or repos_base_dir.startswith('../'):
+        repos_dir = project_root / repos_base_dir.lstrip('./')
+    else:
+        repos_dir = Path(repos_base_dir)
+    
     # Create main output directory if it doesn't exist
-    output_dir = project_root / "repos"
-    output_dir.mkdir(exist_ok=True)
+    repos_dir.mkdir(exist_ok=True, parents=True)
     
     # Create directories for each repository
     repo_dirs = {}
     for repo in repositories:
-        # Extract owner and repo name
-        parts = repo.split('/')
-        if len(parts) != 2:
-            print(f"Invalid repository format: {repo}. Expected format: owner/repo")
-            continue
+        # Extract repo name from owner/repo format
+        repo_name = repo.split('/')[-1]
         
-        owner, repo_name = parts
+        # Create repository-specific directory
+        repo_dir = repos_dir / repo_name
+        repo_dir.mkdir(exist_ok=True)
         
-        # Create directory structure: repos/repo_name
-        repo_dir = output_dir / repo_name
-        if not repo_dir.exists():
-            repo_dir.mkdir(exist_ok=True)
-            
         repo_dirs[repo] = repo_dir
-        
-        print(f"Created output directory for {repo}: {repo_dir}")
     
     return repo_dirs
 
@@ -146,7 +147,7 @@ def main():
         print(f"- {repo}")
     
     # Create output directories
-    repo_dirs = create_output_dirs(project_root, repositories)
+    repo_dirs = create_output_dirs(project_root, repositories, config)
     
     # Clone/pull repositories
     success_count = 0

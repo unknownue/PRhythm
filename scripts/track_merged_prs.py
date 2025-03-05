@@ -38,19 +38,30 @@ def read_config(config_path):
         print(f"Error reading configuration file: {e}")
         return None
 
-def get_status_file_path(project_root):
+def get_status_file_path(project_root, config):
     """
     Get the path to the status file
     
     Args:
         project_root: Project root directory
+        config: Configuration dictionary
         
     Returns:
         Path: Path to the status file
     """
-    status_dir = project_root / "repos"
-    status_dir.mkdir(exist_ok=True)
-    return status_dir / "pr_processing_status.json"
+    # Get repos directory from config or use default
+    repos_base_dir = config.get('paths', {}).get('repos_dir', './repos')
+    
+    # Convert relative path to absolute if needed
+    if repos_base_dir.startswith('./') or repos_base_dir.startswith('../'):
+        repos_dir = project_root / repos_base_dir.lstrip('./')
+    else:
+        repos_dir = Path(repos_base_dir)
+    
+    # Create directory if it doesn't exist
+    repos_dir.mkdir(exist_ok=True, parents=True)
+    
+    return repos_dir / "pr_processing_status.json"
 
 def read_status_file(status_file_path):
     """
@@ -260,6 +271,10 @@ def main():
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     project_root = script_dir.parent
     
+    # Read configuration
+    config_path = project_root / "config.json"
+    config = read_config(config_path)
+    
     # Validate and normalize repository URL
     try:
         repo = validate_repo_url(args.repo)
@@ -268,7 +283,7 @@ def main():
         sys.exit(1)
     
     # Get status file path
-    status_file_path = get_status_file_path(project_root)
+    status_file_path = get_status_file_path(project_root, config)
     
     # Read current status
     status_data = read_status_file(status_file_path)

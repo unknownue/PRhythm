@@ -15,20 +15,47 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-def ensure_output_dir(project_root, repo):
+def read_config(config_path):
+    """
+    Read configuration file and return its contents
+    
+    Args:
+        config_path: Path to the configuration file
+        
+    Returns:
+        dict: Configuration contents
+    """
+    try:
+        with open(config_path, 'r') as file:
+            config = json.load(file)
+            return config
+    except Exception as e:
+        print(f"Error reading configuration file: {e}")
+        sys.exit(1)
+
+def ensure_output_dir(project_root, repo, config):
     """
     Ensure the output directory exists for the specific repository
     
     Args:
         project_root: Project root directory
         repo: Repository name (owner/repo)
+        config: Configuration dictionary
         
     Returns:
         Path: Path to the repository-specific output directory
     """
+    # Get output directory from config or use default
+    output_base_dir = config.get('paths', {}).get('output_dir', './output')
+    
+    # Convert relative path to absolute if needed
+    if output_base_dir.startswith('./') or output_base_dir.startswith('../'):
+        output_dir = project_root / output_base_dir.lstrip('./')
+    else:
+        output_dir = Path(output_base_dir)
+    
     # Create main output directory if it doesn't exist
-    output_dir = project_root / "output"
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(exist_ok=True, parents=True)
     
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
@@ -368,7 +395,7 @@ def parse_arguments():
     parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
     return parser.parse_args()
 
-def fetch_repo_content(repo, pr_number, repo_path=None):
+def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
     """
     Pull repository content to ensure we're analyzing the current version of the PR
     
@@ -376,6 +403,7 @@ def fetch_repo_content(repo, pr_number, repo_path=None):
         repo: Repository name (owner/repo)
         pr_number: PR number
         repo_path: Local repository path (optional)
+        config: Configuration dictionary
         
     Returns:
         str: Repository path used for analysis
@@ -383,7 +411,17 @@ def fetch_repo_content(repo, pr_number, repo_path=None):
     # Get project root directory for repos path
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     project_root = script_dir.parent
-    repos_dir = project_root / "repos"
+    
+    # Get repos directory from config or use default
+    if config:
+        repos_base_dir = config.get('paths', {}).get('repos_dir', './repos')
+        # Convert relative path to absolute if needed
+        if repos_base_dir.startswith('./') or repos_base_dir.startswith('../'):
+            repos_dir = project_root / repos_base_dir.lstrip('./')
+        else:
+            repos_dir = Path(repos_base_dir)
+    else:
+        repos_dir = project_root / "repos"
     
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
@@ -515,6 +553,10 @@ def main():
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
     project_root = script_dir.parent
     
+    # Read configuration
+    config_path = project_root / "config.json"
+    config = read_config(config_path)
+    
     # Validate and normalize repository URL
     try:
         repo = validate_repo_url(args.repo)
@@ -523,12 +565,12 @@ def main():
         sys.exit(1)
     
     # Ensure repository-specific output directory exists
-    output_dir = ensure_output_dir(project_root, repo)
+    output_dir = ensure_output_dir(project_root, repo, config)
     
     print(f"Fetching information for PR #{args.pr} from repository {repo}...")
     
     # Pull repository content - this will exit if repository doesn't exist
-    repo_path = fetch_repo_content(repo, args.pr, args.repo_path)
+    repo_path = fetch_repo_content(repo, args.pr, args.repo_path, config)
     
     # Fetch PR information
     pr_data = fetch_pr_info(repo, args.pr)

@@ -155,11 +155,18 @@ def update_config_with_port(port):
             config['viewer'] = {'enabled': True, 'port': int(port), 'debug': False}
         else:
             config['viewer']['port'] = int(port)
+            
+            # Remove analysis_dir from viewer if it exists (now using paths.analysis_dir)
+            if 'analysis_dir' in config['viewer']:
+                del config['viewer']['analysis_dir']
         
         with open('config.json', 'w') as f:
             json.dump(config, f, indent=2)
+        
+        return True
     except Exception as e:
-        print_color(YELLOW, f"Warning: Could not update config.json: {e}")
+        print(f"Error updating config: {e}", file=sys.stderr)
+        return False
 
 def check_port_in_use(port):
     """Check if the port is already in use"""
