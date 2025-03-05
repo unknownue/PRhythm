@@ -52,7 +52,9 @@ Translate the PR description to the target language, preserving:
 
 ## The Story of This Pull Request
 
-Tell the complete story of this PR as a cohesive narrative. Weave together the following elements:
+Tell the complete story of this PR as a cohesive narrative. Focus on creating a logical flow that best explains the changes, rather than rigidly following all the suggested elements below. Adjust the depth and breadth of your analysis based on the PR's complexity.
+
+The following elements can be incorporated as appropriate:
 
 1. **The Problem and Context**: What problem was the developer facing? Why was it important to solve? What were the technical constraints or limitations?
 
@@ -70,19 +72,17 @@ Include throughout your narrative:
 - Connections between different parts of the implementation
 - Technical trade-offs or considerations
 
+Remember that the goal is to create a coherent story that helps the reader understand the PR, not to check off every suggested element. Simple PRs may require less detail, while complex ones might need more in-depth analysis of certain aspects.
+
 ## Visual Representation
 
-Include a simple ASCII diagram that illustrates the relationships between the components modified in this PR:
+Include a Mermaid diagram that illustrates the relationships between the components modified in this PR:
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Component A │────>│ Component B │────>│ Component C │
-└─────────────┘     └─────────────┘     └─────────────┘
-                          │
-                          ▼
-                    ┌─────────────┐
-                    │ Component D │
-                    └─────────────┘
+```mermaid
+graph LR
+    A[Component A] --> B[Component B]
+    B --> C[Component C]
+    B --> D[Component D]
 ```
 
 ## Key Files Changed
@@ -92,7 +92,7 @@ List the most significant files changed in this PR:
 
 For each important file, include:
 1. A brief description of what changed and why
-2. Code snippets showing the key modifications (both before and after if applicable)
+2. Code snippets showing the key modifications (both before and after if applicable). DO NOT translate any comments/code in Code snippets.
 3. How these changes relate to the overall purpose of the PR
 
 Example:
