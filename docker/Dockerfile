@@ -23,6 +23,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+RUN pip install pqi -i https://mirrors.ustc.edu.cn/pypi/web/simple && \
+    pqi use ustc
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
