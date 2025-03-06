@@ -1151,7 +1151,6 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     repo_output_dir = output_dir / repo_name / month_dir
     
     # Ensure directory exists with proper permissions
-    print(f"Creating directory: {repo_output_dir}")
     os.makedirs(repo_output_dir, exist_ok=True)
     
     # Create a filename
@@ -1163,22 +1162,13 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     abs_file_path = os.path.abspath(file_path)
     
     try:
-        print(f"Writing report to file: {abs_file_path}")
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(report)
         
-        # Verify file was created
-        if os.path.exists(file_path):
-            print(f"Saved analysis report: {abs_file_path}")
-            return file_path
-        else:
-            print(f"Error: File was not created at {abs_file_path}")
-            sys.exit(1)
+        print(f"Saved analysis report: {abs_file_path}")
+        return file_path
     except Exception as e:
         print(f"Error saving analysis report: {e}")
-        # Print more detailed error information
-        import traceback
-        print(traceback.format_exc())
         sys.exit(1)
 
 def parse_arguments():
@@ -1350,11 +1340,7 @@ def main():
         analysis_dir = Path(analysis_base_dir)
     
     # Create output directory with proper permissions
-    print(f"Ensuring analysis directory exists: {analysis_dir}")
     os.makedirs(analysis_dir, exist_ok=True)
-    
-    # Print absolute path for debugging
-    print(f"Absolute analysis directory path: {os.path.abspath(analysis_dir)}")
     
     # Save analysis report(s)
     if output_language == "multilingual":
