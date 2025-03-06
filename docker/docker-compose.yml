@@ -6,6 +6,7 @@ services:
     container_name: prhythm
     volumes:
       - ..:/app  # Map the entire project directory to the container
+      - ~/Workspace/unknownue.github.io/content/pull_request:/app/analysis
       - ~/.config/gh:/root/.config/gh:ro  # Mount GitHub CLI credentials (read-only)
     restart: unless-stopped
     ports:
