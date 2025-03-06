@@ -722,6 +722,7 @@ def save_multilingual_reports(report, pr_data, output_dir, languages):
         try:
             with open(file_path, 'w', encoding='utf-8') as file:
                 file.write(content)
+            print(f"Saved {lang} analysis report: {file_path}")
             saved_files.append(file_path)
         except Exception as e:
             print(f"Error saving {lang} analysis report: {e}")
@@ -1076,6 +1077,7 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     try:
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(report)
+        print(f"Saved analysis report: {file_path}")
         return file_path
     except Exception as e:
         print(f"Error saving analysis report: {e}")

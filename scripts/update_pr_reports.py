@@ -34,7 +34,8 @@ import logging
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(message)s',
+    datefmt='%H:%M:%S',
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler('update_pr_reports.log')
@@ -292,6 +293,7 @@ def update_pr_reports():
             if not pr_number:
                 continue
                 
+            logger.info("")
             logger.info("===== Processing PR #%s =====", pr_number)
             
             # 5. Get PR information
@@ -314,8 +316,8 @@ def update_pr_reports():
             logger.info("Found PR information file: %s", pr_json)
             
             # 6. Analyze PR using configured language and provider
-            logger.info("6. Analyzing PR and generating report in %s language using %s provider...", 
-                       output_language, default_provider)
+            logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
+                       pr_number, output_language, default_provider)
             analyze_pr_script = project_root / "scripts" / "analyze_pr.py"
             returncode, stdout, stderr = run_script(
                 analyze_pr_script, 
@@ -348,6 +350,7 @@ def update_pr_reports():
             
             # Optional: Add delay to avoid API rate limits
             logger.info("Waiting 5 seconds before processing next PR...")
+            logger.info("")
             time.sleep(5)
     
     logger.info("===== PR Analysis Update Completed %s =====", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
