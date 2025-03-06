@@ -46,6 +46,8 @@ Translate the PR description to the target language, preserving:
 - All image references and links exactly as they appear
 - Code blocks and formatting
 
+Note: If the target language is English, simply include the original description exactly as-is, without any translation notes or placeholders.
+
 {pr_data['body']}
 
 ## The Story of This Pull Request

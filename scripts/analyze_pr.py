@@ -700,7 +700,17 @@ This instruction is for backward compatibility and should not be used directly.
         # Get the language name from the mapping
         language_name = LANGUAGE_NAMES.get(output_language, output_language)
         
-        return f"""
+        # Special handling for English
+        if output_language == "en":
+            return f"""
+Generate your analysis in {language_name}.
+1. Use {language_name} for all content except code and technical terms
+2. Keep widely recognized technical terms in English
+3. In the "Description Translation" section, include the PR description exactly as-is without any translation notes or placeholders
+4. Never translate code snippets, variable names, function names, or code comments
+"""
+        else:
+            return f"""
 Generate your analysis in {language_name}.
 1. Use {language_name} for all content except code and technical terms
 2. Keep widely recognized technical terms in English
