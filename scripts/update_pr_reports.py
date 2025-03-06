@@ -325,6 +325,12 @@ def update_pr_reports():
             
             # Ensure analysis directory exists
             analysis_dir = project_root / analysis_base_dir.lstrip('./')
+            
+            # Check if path exists but is not a directory
+            if os.path.exists(analysis_dir) and not os.path.isdir(analysis_dir):
+                logger.warning("Path %s exists but is not a directory. Removing it...", analysis_dir)
+                os.remove(analysis_dir)
+                
             os.makedirs(analysis_dir, exist_ok=True)
             
             # Run analyze_pr.py with explicit config path
