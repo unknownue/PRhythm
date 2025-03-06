@@ -319,27 +319,59 @@ def update_pr_reports():
             logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
                        pr_number, output_language, default_provider)
             analyze_pr_script = project_root / "scripts" / "analyze_pr.py"
+            
+            # Get analysis directory from config
+            analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+            
+            # Ensure analysis directory exists
+            analysis_dir = project_root / analysis_base_dir.lstrip('./')
+            os.makedirs(analysis_dir, exist_ok=True)
+            
+            # Log the analysis directory
+            logger.info("Analysis directory: %s", analysis_dir)
+            
+            # Run analyze_pr.py with explicit config path
             returncode, stdout, stderr = run_script(
                 analyze_pr_script, 
                 "--json", pr_json, 
                 "--language", output_language,
-                "--provider", default_provider
+                "--provider", default_provider,
+                "--config", str(config_path)
             )
+            
+            # Log stdout and stderr for debugging
+            logger.debug("analyze_pr.py stdout: %s", stdout)
+            if stderr:
+                logger.debug("analyze_pr.py stderr: %s", stderr)
             
             # Check if analysis was successful
             if returncode == 0:
                 # Extract the saved report path from stdout
-                report_path_match = re.search(r"Analysis report saved to: (.+\.md)", stdout)
+                report_path_match = re.search(r"Saved analysis report: (.+\.md)", stdout)
                 multilingual_match = re.search(r"Multilingual analysis reports saved to:", stdout)
                 
                 if report_path_match:
                     report_path = report_path_match.group(1)
                     logger.info("Generated report saved to: %s", report_path)
+                    
+                    # Verify file exists
+                    if os.path.exists(report_path):
+                        logger.info("Verified: Report file exists at %s", report_path)
+                    else:
+                        logger.warning("Warning: Report file does not exist at %s", report_path)
                 elif multilingual_match:
                     # Extract multiple report paths for multilingual output
                     report_paths = re.findall(r"- (.+\.md)", stdout)
                     for path in report_paths:
                         logger.info("Generated report saved to: %s", path)
+                        
+                        # Verify file exists
+                        if os.path.exists(path):
+                            logger.info("Verified: Report file exists at %s", path)
+                        else:
+                            logger.warning("Warning: Report file does not exist at %s", path)
+                else:
+                    logger.warning("No report path found in analyze_pr.py output")
                 
                 # 7. Update processing status
                 logger.info("7. Updating PR processing status...")

@@ -1149,20 +1149,36 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     
     # Create repository-specific directory
     repo_output_dir = output_dir / repo_name / month_dir
-    repo_output_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Ensure directory exists with proper permissions
+    print(f"Creating directory: {repo_output_dir}")
+    os.makedirs(repo_output_dir, exist_ok=True)
     
     # Create a filename
     pr_number = pr_data.get('number', 'unknown')
     filename = f"pr_{pr_number}_{output_language}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
     file_path = repo_output_dir / filename
     
+    # Convert to absolute path for better logging
+    abs_file_path = os.path.abspath(file_path)
+    
     try:
+        print(f"Writing report to file: {abs_file_path}")
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(report)
-        print(f"Saved analysis report: {file_path}")
-        return file_path
+        
+        # Verify file was created
+        if os.path.exists(file_path):
+            print(f"Saved analysis report: {abs_file_path}")
+            return file_path
+        else:
+            print(f"Error: File was not created at {abs_file_path}")
+            sys.exit(1)
     except Exception as e:
         print(f"Error saving analysis report: {e}")
+        # Print more detailed error information
+        import traceback
+        print(traceback.format_exc())
         sys.exit(1)
 
 def parse_arguments():
@@ -1333,8 +1349,12 @@ def main():
     else:
         analysis_dir = Path(analysis_base_dir)
     
-    # Create output directory
-    analysis_dir.mkdir(exist_ok=True, parents=True)
+    # Create output directory with proper permissions
+    print(f"Ensuring analysis directory exists: {analysis_dir}")
+    os.makedirs(analysis_dir, exist_ok=True)
+    
+    # Print absolute path for debugging
+    print(f"Absolute analysis directory path: {os.path.abspath(analysis_dir)}")
     
     # Save analysis report(s)
     if output_language == "multilingual":
