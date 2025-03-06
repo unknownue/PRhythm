@@ -983,9 +983,16 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     # Ensure directory exists with proper permissions
     os.makedirs(repo_output_dir, exist_ok=True)
     
-    # Create a filename
+    # Create a filename - ensure we use a valid language code in the filename
     pr_number = pr_data.get('number', 'unknown')
-    filename = f"pr_{pr_number}_{output_language}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
+    
+    # If output_language is 'multilingual', this is an error since we now process languages individually
+    language_code = output_language
+    if language_code == 'multilingual':
+        print(f"Warning: 'multilingual' is no longer a valid output language. Using 'unknown' in filename.")
+        language_code = 'unknown'
+    
+    filename = f"pr_{pr_number}_{language_code}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
     file_path = repo_output_dir / filename
     
     # Convert to absolute path for better logging
