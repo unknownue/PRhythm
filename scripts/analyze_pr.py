@@ -17,6 +17,17 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
+# Define language markers (both English and native names)
+LANGUAGE_MARKERS = {
+    'en': ['# English Version', '# English'],
+    'zh-cn': ['# 中文版本', '# Chinese Version', '# 中文版本 (Chinese Version)', '# Chinese'],
+    'ja': ['# 日本語版', '# Japanese Version', '# 日本語版 (Japanese Version)', '# Japanese'],
+    'ko': ['# 한국어 버전', '# Korean Version', '# 한국어 버전 (Korean Version)', '# Korean'],
+    'fr': ['# Version Française', '# French Version', '# Version Française (French Version)', '# French', '# Français'],
+    'de': ['# Deutsche Version', '# German Version', '# Deutsche Version (German Version)', '# German', '# Deutsch'],
+    'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)', '# Spanish', '# Español']
+}
+
 def read_config(config_path):
     """
     Read configuration file and return its contents
@@ -635,6 +646,11 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     # Replace file changes summary
     prompt = prompt.replace("{file_changes_summary}", file_changes_summary)
     
+    # Replace "# Title" with "# #{pr number} {pr_title}"
+    pr_number = pr_data.get('number', '')
+    pr_title = pr_data.get('title', '')
+    prompt = prompt.replace("# Title", f"# #{pr_number} {pr_title}")
+    
     # Replace PR body
     if 'body' in pr_data:
         # Find the position to replace the body
@@ -658,9 +674,62 @@ def prepare_multilingual_instruction(output_language):
         str: Multilingual instruction
     """
     if output_language == "multilingual":
-        return """
+        # Get languages from config
+        config_path = Path(__file__).parent.parent / "config.json"
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            languages = config.get('output', {}).get('languages', ['en'])
+            
+            # Map language codes to language names
+            language_names = {
+                'en': 'English',
+                'zh-cn': '中文 (Chinese)',
+                'ja': '日本語 (Japanese)',
+                'ko': '한국어 (Korean)',
+                'fr': 'Français (French)',
+                'de': 'Deutsch (German)',
+                'es': 'Español (Spanish)'
+            }
+            
+            # Filter languages to only include supported ones
+            valid_languages = list(LANGUAGE_MARKERS.keys())
+            languages = [lang for lang in languages if lang in valid_languages]
+            
+            if not languages:
+                print("Warning: No valid languages found in config. Defaulting to English.")
+                languages = ['en']
+            
+            # Create a list of languages to generate
+            language_list = []
+            for lang in languages:
+                if lang in language_names:
+                    language_list.append(f"- {language_names[lang]}")
+            
+            language_instruction = "\n".join(language_list)
+            
+            return f"""
+Generate your analysis in the following languages:
+{language_instruction}
+
+For each language section:
+1. Use the appropriate language for all content except code and technical terms
+2. Maintain consistent structure across all language versions
+3. Keep all section headings in English (e.g., "Basic Information", "The Story of This Pull Request")
+4. In the "Key Files Changed" section:
+   - List the most significant files changed
+   - Include a brief description of what changed and why for each important file
+   - Add code snippets showing the key modifications (both before and after if applicable)
+   - Explain how these changes relate to the overall purpose of the PR
+   - Do not translate any code, comments, or variable names
+5. Ensure each language version is complete and standalone
+6. Separate each language version with the "---" delimiter
+"""
+        except Exception as e:
+            print(f"Error reading config file: {e}")
+            return """
 Generate your analysis in multiple languages. For each language section:
-1. Replace "[Language]" with the appropriate language name (e.g., "English", "中文", "Français")
+1. Replace "[Language]" with the appropriate language name (e.g., "English", "中文")
 2. Use the appropriate language for all content except code and technical terms
 3. Maintain consistent structure across all language versions
 4. Keep all section headings in English (e.g., "Basic Information", "The Story of This Pull Request")
@@ -740,17 +809,6 @@ def split_multilingual_report(report, languages):
     Returns:
         dict: Language sections
     """
-    # Define language markers (both English and native names)
-    language_markers = {
-        'en': ['# English Version', '# English'],
-        'zh-cn': ['# 中文版本', '# Chinese Version', '# 中文版本 (Chinese Version)', '# Chinese'],
-        'ja': ['# 日本語版', '# Japanese Version', '# 日本語版 (Japanese Version)', '# Japanese'],
-        'ko': ['# 한국어 버전', '# Korean Version', '# 한국어 버전 (Korean Version)', '# Korean'],
-        'fr': ['# Version Française', '# French Version', '# Version Française (French Version)', '# French', '# Français'],
-        'de': ['# Deutsche Version', '# German Version', '# Deutsche Version (German Version)', '# German', '# Deutsch'],
-        'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)', '# Spanish', '# Español']
-    }
-    
     # Initialize result dictionary
     result = {}
     
@@ -767,10 +825,22 @@ def split_multilingual_report(report, languages):
         
         # Identify the language
         identified_lang = None
-        for lang, markers in language_markers.items():
-            if any(marker in first_line for marker in markers):
+        
+        # First try to match with languages in the provided list
+        for lang in languages:
+            if lang in LANGUAGE_MARKERS and any(marker in first_line for marker in LANGUAGE_MARKERS[lang]):
                 identified_lang = lang
                 break
+        
+        # If not found in the provided list, try all language markers
+        if not identified_lang:
+            for lang, markers in LANGUAGE_MARKERS.items():
+                if any(marker in first_line for marker in markers):
+                    # If this language is not in our expected languages list, log a warning
+                    if lang not in languages:
+                        print(f"Warning: Found content in {lang} which is not in the configured languages list: {', '.join(languages)}")
+                    identified_lang = lang
+                    break
         
         # If language not identified but section has content
         if not identified_lang and section.strip():
@@ -783,9 +853,16 @@ def split_multilingual_report(report, languages):
             # If still not identified, use the first language in the list
             if not identified_lang and languages:
                 identified_lang = languages[0]
+                print(f"Warning: Could not identify language for a section. Using default language: {identified_lang}")
         
         # Add section to results if language identified
         if identified_lang:
+            # If the identified language is not in our expected languages list but we have languages configured,
+            # map it to the first language in our list
+            if identified_lang not in languages and languages:
+                print(f"Warning: Mapping content in {identified_lang} to {languages[0]} as per configuration")
+                identified_lang = languages[0]
+            
             result[identified_lang] = section.strip()
     
     # If no sections were found but we have content, treat as single language
@@ -794,6 +871,11 @@ def split_multilingual_report(report, languages):
             result[languages[0]] = report.strip()
         else:
             result['en'] = report.strip()
+    
+    # Check if we have all expected languages
+    missing_languages = [lang for lang in languages if lang not in result]
+    if missing_languages:
+        print(f"Warning: The following languages were not found in the report: {', '.join(missing_languages)}")
     
     return result
 
@@ -1258,6 +1340,19 @@ def main():
     if output_language == "multilingual":
         # Get languages from config
         languages = config.get('output', {}).get('languages', ['en'])
+        
+        # Validate languages
+        valid_languages = list(LANGUAGE_MARKERS.keys())
+        invalid_languages = [lang for lang in languages if lang not in valid_languages]
+        if invalid_languages:
+            print(f"Warning: The following languages in config are not supported: {', '.join(invalid_languages)}")
+            languages = [lang for lang in languages if lang in valid_languages]
+        
+        if not languages:
+            print("Warning: No valid languages found in config. Defaulting to English.")
+            languages = ['en']
+        
+        print(f"Generating reports for the following languages: {', '.join(languages)}")
         
         # Save multilingual reports
         file_paths = save_multilingual_reports(report, pr_data, analysis_dir, languages)
