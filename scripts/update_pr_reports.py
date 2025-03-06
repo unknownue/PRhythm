@@ -349,7 +349,6 @@ def update_pr_reports():
                 
                 # Create the directory
                 os.makedirs(analysis_dir, exist_ok=True)
-                logger.info("Ensured analysis directory exists at: %s", analysis_dir)
             except Exception as e:
                 logger.error("Error handling analysis directory: %s", str(e))
                 # Fallback to a directory we know should work in Docker
