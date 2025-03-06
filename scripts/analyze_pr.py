@@ -28,6 +28,17 @@ LANGUAGE_MARKERS = {
     'es': ['# Versión en Español', '# Spanish Version', '# Versión en Español (Spanish Version)', '# Spanish', '# Español']
 }
 
+# Map language codes to language names
+LANGUAGE_NAMES = {
+    'en': 'English',
+    'zh-cn': '中文 (Chinese)',
+    'ja': '日本語 (Japanese)',
+    'ko': '한국어 (Korean)',
+    'fr': 'Français (French)',
+    'de': 'Deutsch (German)',
+    'es': 'Español (Spanish)'
+}
+
 def read_config(config_path):
     """
     Read configuration file and return its contents
@@ -570,8 +581,8 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     if 'reviews' in pr_data:
         pr_data['reviews'] = []
     
-    # Prepare multilingual instructions
-    multilingual_instruction = prepare_multilingual_instruction(output_language)
+    # Prepare language-specific instructions
+    language_instruction = prepare_language_instruction(output_language)
     
     # Create a context dictionary with all variables needed for the prompt
     context = {
@@ -585,7 +596,7 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         'learning_points': learning_points,
         'module_context_summary': module_context_summary,
         'modified_file_contents': modified_file_contents,
-        'multilingual_instruction': multilingual_instruction,
+        'multilingual_instruction': language_instruction,
         'len': len  # Include len function for use in the template
     }
     
@@ -625,7 +636,7 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     prompt = prompt.replace("{learning_points}", learning_points)
     prompt = prompt.replace("{module_context_summary}", module_context_summary)
     prompt = prompt.replace("{modified_file_contents}", modified_file_contents)
-    prompt = prompt.replace("{multilingual_instruction}", multilingual_instruction)
+    prompt = prompt.replace("{multilingual_instruction}", language_instruction)
     
     # Replace simple variable references
     for key in pr_data:
@@ -649,7 +660,13 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     # Replace "# Title" with "# #{pr number} {pr_title}"
     pr_number = pr_data.get('number', '')
     pr_title = pr_data.get('title', '')
-    prompt = prompt.replace("# Title", f"# #{pr_number} {pr_title}")
+    
+    # Ensure exact match for the title line - look for a line that is exactly "# Title"
+    lines = prompt.split('\n')
+    for i, line in enumerate(lines):
+        if line.strip() == "# Title":
+            lines[i] = f"# #{pr_number} {pr_title}"
+    prompt = '\n'.join(lines)
     
     # Replace PR body
     if 'body' in pr_data:
@@ -658,226 +675,39 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         if body_placeholder in prompt:
             prompt = prompt.replace(body_placeholder, pr_data['body'] or "No description provided")
     
-    # Remove any remaining {multilingual_format} placeholder
+    # Remove any remaining placeholders
     prompt = prompt.replace("{multilingual_format}", "")
     
     return prompt
 
-def prepare_multilingual_instruction(output_language):
+def prepare_language_instruction(output_language):
     """
-    Prepare multilingual instruction based on output language
+    Prepare language-specific instruction for the analysis
     
     Args:
-        output_language: Output language
+        output_language: Output language code (e.g., 'en', 'zh-cn') or 'multilingual'
         
     Returns:
-        str: Multilingual instruction
+        str: Language-specific instruction
     """
     if output_language == "multilingual":
-        # Get languages from config
-        config_path = Path(__file__).parent.parent / "config.json"
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-            languages = config.get('output', {}).get('languages', ['en'])
-            
-            # Map language codes to language names
-            language_names = {
-                'en': 'English',
-                'zh-cn': '中文 (Chinese)',
-                'ja': '日本語 (Japanese)',
-                'ko': '한국어 (Korean)',
-                'fr': 'Français (French)',
-                'de': 'Deutsch (German)',
-                'es': 'Español (Spanish)'
-            }
-            
-            # Filter languages to only include supported ones
-            valid_languages = list(LANGUAGE_MARKERS.keys())
-            languages = [lang for lang in languages if lang in valid_languages]
-            
-            if not languages:
-                print("Warning: No valid languages found in config. Defaulting to English.")
-                languages = ['en']
-            
-            # Create a list of languages to generate
-            language_list = []
-            for lang in languages:
-                if lang in language_names:
-                    language_list.append(f"- {language_names[lang]}")
-            
-            language_instruction = "\n".join(language_list)
-            
-            return f"""
-Generate your analysis in the following languages:
-{language_instruction}
-
-For each language section:
-1. Use the appropriate language for all content except code and technical terms
-2. Maintain consistent structure across all language versions
-3. Keep all section headings in English (e.g., "Basic Information", "The Story of This Pull Request")
-4. In the "Key Files Changed" section:
-   - List the most significant files changed
-   - Include a brief description of what changed and why for each important file
-   - Add code snippets showing the key modifications (both before and after if applicable)
-   - Explain how these changes relate to the overall purpose of the PR
-   - Do not translate any code, comments, or variable names
-5. Ensure each language version is complete and standalone
-6. Separate each language version with the "---" delimiter
-"""
-        except Exception as e:
-            print(f"Error reading config file: {e}")
-            return """
-Generate your analysis in multiple languages. For each language section:
-1. Replace "[Language]" with the appropriate language name (e.g., "English", "中文")
-2. Use the appropriate language for all content except code and technical terms
-3. Maintain consistent structure across all language versions
-4. Keep all section headings in English (e.g., "Basic Information", "The Story of This Pull Request")
-5. In the "Key Files Changed" section:
-   - List the most significant files changed
-   - Include a brief description of what changed and why for each important file
-   - Add code snippets showing the key modifications (both before and after if applicable)
-   - Explain how these changes relate to the overall purpose of the PR
-   - Do not translate any code, comments, or variable names
-6. Ensure each language version is complete and standalone
-7. Separate each language version with the "---" delimiter
+        # For backward compatibility, return a message indicating multilingual is no longer supported directly
+        return """
+Multilingual mode is now handled by making separate API calls for each language.
+This instruction is for backward compatibility and should not be used directly.
 """
     else:
+        # Get the language name from the mapping
+        language_name = LANGUAGE_NAMES.get(output_language, output_language)
+        
         return f"""
-Generate your analysis in {output_language}.
+Generate your analysis in {language_name}.
+1. Use {language_name} for all content except code and technical terms
+2. Keep widely recognized technical terms in English
+3. For other terms, provide translation with English in parentheses
+4. For complex concepts, explain in both languages for clarity
+5. Never translate code snippets, variable names, function names, or code comments
 """
-
-def save_multilingual_reports(report, pr_data, output_dir, languages):
-    """
-    Save multilingual reports to separate files
-    
-    Args:
-        report: Analysis report (containing multiple language versions)
-        pr_data: PR data
-        output_dir: Output directory
-        languages: List of languages
-        
-    Returns:
-        list: Paths to the saved files
-    """
-    # Extract repository name from owner/repo format
-    repo = pr_data.get('repository', 'unknown')
-    repo_name = repo.split('/')[-1]
-    
-    # Get current date for month-based directory
-    current_date = datetime.now()
-    month_dir = current_date.strftime('%Y-%m')  # Format: YYYY-MM
-    
-    # Create repository-specific directory
-    repo_output_dir = output_dir / repo_name / month_dir
-    repo_output_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Get PR number
-    pr_number = pr_data.get('number', 'unknown')
-    
-    # Base timestamp for all files
-    timestamp = current_date.strftime('%Y%m%d_%H%M%S')
-    
-    # Split the report into language sections
-    language_sections = split_multilingual_report(report, languages)
-    
-    saved_files = []
-    
-    # Save each language section to a separate file
-    for lang, content in language_sections.items():
-        filename = f"pr_{pr_number}_{lang}_{timestamp}.md"
-        file_path = repo_output_dir / filename
-        
-        try:
-            with open(file_path, 'w', encoding='utf-8') as file:
-                file.write(content)
-            print(f"Saved {lang} analysis report: {file_path}")
-            saved_files.append(file_path)
-        except Exception as e:
-            print(f"Error saving {lang} analysis report: {e}")
-    
-    return saved_files
-
-def split_multilingual_report(report, languages):
-    """
-    Split a multilingual report into separate language sections
-    
-    Args:
-        report: Multilingual report
-        languages: List of languages
-        
-    Returns:
-        dict: Language sections
-    """
-    # Initialize result dictionary
-    result = {}
-    
-    # Split the report by "---" delimiter
-    sections = report.split('---')
-    
-    # Process each section
-    for section in sections:
-        if not section.strip():
-            continue
-        
-        # Get the first line which should contain the language marker
-        first_line = section.strip().split('\n')[0].strip()
-        
-        # Identify the language
-        identified_lang = None
-        
-        # First try to match with languages in the provided list
-        for lang in languages:
-            if lang in LANGUAGE_MARKERS and any(marker in first_line for marker in LANGUAGE_MARKERS[lang]):
-                identified_lang = lang
-                break
-        
-        # If not found in the provided list, try all language markers
-        if not identified_lang:
-            for lang, markers in LANGUAGE_MARKERS.items():
-                if any(marker in first_line for marker in markers):
-                    # If this language is not in our expected languages list, log a warning
-                    if lang not in languages:
-                        print(f"Warning: Found content in {lang} which is not in the configured languages list: {', '.join(languages)}")
-                    identified_lang = lang
-                    break
-        
-        # If language not identified but section has content
-        if not identified_lang and section.strip():
-            # Try to guess language from content
-            for lang in languages:
-                if lang in first_line.lower():
-                    identified_lang = lang
-                    break
-            
-            # If still not identified, use the first language in the list
-            if not identified_lang and languages:
-                identified_lang = languages[0]
-                print(f"Warning: Could not identify language for a section. Using default language: {identified_lang}")
-        
-        # Add section to results if language identified
-        if identified_lang:
-            # If the identified language is not in our expected languages list but we have languages configured,
-            # map it to the first language in our list
-            if identified_lang not in languages and languages:
-                print(f"Warning: Mapping content in {identified_lang} to {languages[0]} as per configuration")
-                identified_lang = languages[0]
-            
-            result[identified_lang] = section.strip()
-    
-    # If no sections were found but we have content, treat as single language
-    if not result and report.strip():
-        if languages:
-            result[languages[0]] = report.strip()
-        else:
-            result['en'] = report.strip()
-    
-    # Check if we have all expected languages
-    missing_languages = [lang for lang in languages if lang not in result]
-    if missing_languages:
-        print(f"Warning: The following languages were not found in the report: {', '.join(missing_languages)}")
-    
-    return result
 
 def calculate_pr_complexity(pr_data):
     """
@@ -1175,13 +1005,12 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Analyze PR information using LLM API')
     parser.add_argument('--json', help='Path to the PR JSON file')
-    parser.add_argument('--repo', help='Repository name (owner/repo) - used to find the latest PR JSON file if --json is not specified')
-    parser.add_argument('--pr', type=int, help='PR number - used to find the latest PR JSON file if --json is not specified')
-    parser.add_argument('--language', default='', help='Output language (e.g., en, zh-cn, multilingual)')
     parser.add_argument('--config', default='config.json', help='Path to the configuration file')
+    parser.add_argument('--language', help='Output language code (e.g., en, zh-cn). If not specified, uses languages from config')
+    parser.add_argument('--repo', help='Repository name in the format "owner/repo"')
+    parser.add_argument('--pr', help='PR number')
+    parser.add_argument('--dry-run', action='store_true', help='Only prepare the prompt without calling the LLM API')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
-    parser.add_argument('--dry-run', action='store_true', help='Only print the prompt without sending the request')
-    parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
     return parser.parse_args()
 
 def find_latest_pr_json(project_root, repo, pr_number, config):
@@ -1291,28 +1120,36 @@ def main():
     prompt_path = project_root / "prompt" / "analyze_pr.prompt"
     prompt_template = read_prompt_template(prompt_path)
     
-    # Determine output language
-    output_language = args.language
-    if not output_language:
+    # Get analysis directory from config or use default
+    analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+    
+    # Convert relative path to absolute if needed
+    if analysis_base_dir.startswith('./') or analysis_base_dir.startswith('../'):
+        analysis_dir = project_root / analysis_base_dir.lstrip('./')
+    else:
+        analysis_dir = Path(analysis_base_dir)
+    
+    # Create output directory with proper permissions
+    os.makedirs(analysis_dir, exist_ok=True)
+    
+    # Determine output language(s)
+    if args.language:
+        # Single language mode
+        languages = [args.language]
+    else:
         # Use configuration setting if not specified in command line
         languages = config.get('output', {}).get('languages', ['en'])
-        if len(languages) > 1:
-            output_language = "multilingual"
-        else:
-            output_language = languages[0] if languages else 'en'
-    
-    # Prepare prompt
-    prompt = prepare_prompt(pr_data, prompt_template, output_language)
-    
-    print(f"Analyzing PR #{pr_data.get('number', 'unknown')} from repository {pr_data.get('repository', 'unknown')}...")
-    print(f"Output language: {output_language}")
-    
-    # If dry run, just print the prompt and exit
-    if args.dry_run:
-        print("\n=== PROMPT ===\n")
-        print(prompt)
-        print("\n=== END OF PROMPT ===\n")
-        return
+        
+        # Validate languages
+        valid_languages = list(LANGUAGE_MARKERS.keys())
+        invalid_languages = [lang for lang in languages if lang not in valid_languages]
+        if invalid_languages:
+            print(f"Warning: The following languages in config are not supported: {', '.join(invalid_languages)}")
+            languages = [lang for lang in languages if lang in valid_languages]
+        
+        if not languages:
+            print("Warning: No valid languages found in config. Defaulting to English.")
+            languages = ['en']
     
     # Add PR data to config for complexity calculation
     if 'github' not in config:
@@ -1327,49 +1164,37 @@ def main():
     pr_number = str(pr_data.get('number', 'unknown'))
     config['github']['data'][repo][pr_number] = pr_data
     
-    # Call LLM API
-    report = call_llm_api(prompt, config, args.provider)
+    print(f"Analyzing PR #{pr_data.get('number', 'unknown')} from repository {pr_data.get('repository', 'unknown')}...")
+    print(f"Generating reports for the following languages: {', '.join(languages)}")
     
-    # Get analysis directory from config or use default
-    analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+    file_paths = []
     
-    # Convert relative path to absolute if needed
-    if analysis_base_dir.startswith('./') or analysis_base_dir.startswith('../'):
-        analysis_dir = project_root / analysis_base_dir.lstrip('./')
-    else:
-        analysis_dir = Path(analysis_base_dir)
+    # Process each language
+    for language in languages:
+        print(f"\nProcessing {LANGUAGE_NAMES.get(language, language)} ({language}) report...")
+        
+        # Prepare language-specific prompt
+        prompt = prepare_prompt(pr_data, prompt_template, language)
+        
+        # If dry run, just print the prompt and skip to next language
+        if args.dry_run:
+            print(f"\n=== PROMPT FOR {language} ===\n")
+            print(prompt)
+            print(f"\n=== END OF PROMPT FOR {language} ===\n")
+            continue
+        
+        # Call LLM API
+        report = call_llm_api(prompt, config, args.provider)
+        
+        # Save report
+        file_path = save_analysis_report(report, pr_data, analysis_dir, language)
+        file_paths.append(file_path)
+        print(f"{LANGUAGE_NAMES.get(language, language)} report saved to: {file_path}")
     
-    # Create output directory with proper permissions
-    os.makedirs(analysis_dir, exist_ok=True)
-    
-    # Save analysis report(s)
-    if output_language == "multilingual":
-        # Get languages from config
-        languages = config.get('output', {}).get('languages', ['en'])
-        
-        # Validate languages
-        valid_languages = list(LANGUAGE_MARKERS.keys())
-        invalid_languages = [lang for lang in languages if lang not in valid_languages]
-        if invalid_languages:
-            print(f"Warning: The following languages in config are not supported: {', '.join(invalid_languages)}")
-            languages = [lang for lang in languages if lang in valid_languages]
-        
-        if not languages:
-            print("Warning: No valid languages found in config. Defaulting to English.")
-            languages = ['en']
-        
-        print(f"Generating reports for the following languages: {', '.join(languages)}")
-        
-        # Save multilingual reports
-        file_paths = save_multilingual_reports(report, pr_data, analysis_dir, languages)
-        
-        print(f"Multilingual analysis reports saved to:")
+    if not args.dry_run:
+        print("\nAll reports generated successfully:")
         for path in file_paths:
             print(f"- {path}")
-    else:
-        # Save single language report
-        file_path = save_analysis_report(report, pr_data, analysis_dir, output_language)
-        print(f"Analysis report saved to: {file_path}")
 
 if __name__ == "__main__":
     main() 

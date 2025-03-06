@@ -18,7 +18,7 @@ Your task is to analyze this PR thoroughly and present your findings as a cohesi
 7. **Image References**: Preserve all image references and links exactly as they appear in the original PR description.
 8. **Original Title**: Do not translate the PR title - keep it in its original English form.
 9. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
-10. **Multilingual Output**: {multilingual_instruction}
+10. **Language Instruction**: {multilingual_instruction}
 
 Your narrative should feel like an experienced developer explaining the PR to a colleague - technically precise but conversational and insightful.
 
@@ -28,8 +28,6 @@ Below are the contents of the files modified in this PR. Use this information to
 {modified_file_contents}
 
 # OUTPUT FORMAT (INCLUDE IN YOUR RESPONSE):
-
-{multilingual_format}
 
 # Title
 
