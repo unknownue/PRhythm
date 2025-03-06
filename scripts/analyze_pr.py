@@ -705,9 +705,8 @@ This instruction is for backward compatibility and should not be used directly.
             return f"""
 Generate your analysis in {language_name}.
 1. Use {language_name} for all content except code and technical terms
-2. Keep widely recognized technical terms in English
-3. In the "Description Translation" section, include the PR description exactly as-is without any translation notes or placeholders
-4. Never translate code snippets, variable names, function names, or code comments
+2. For the "Description Translation" section, simply include the original PR description verbatim without adding any notes like "(Original English description preserved per instructions)"
+3. Never translate code snippets, variable names, function names, or code comments
 """
         else:
             return f"""
@@ -996,11 +995,19 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     # Create a filename - ensure we use a valid language code in the filename
     pr_number = pr_data.get('number', 'unknown')
     
-    # If output_language is 'multilingual', this is an error since we now process languages individually
+    # Ensure we're using a valid language code
     language_code = output_language
-    if language_code == 'multilingual':
-        print(f"Warning: 'multilingual' is no longer a valid output language. Using 'unknown' in filename.")
-        language_code = 'unknown'
+    
+    # Validate the language code against our known languages
+    if language_code not in LANGUAGE_MARKERS:
+        if language_code == 'multilingual':
+            print(f"Warning: 'multilingual' is no longer a valid output language. Using 'unknown' in filename.")
+            language_code = 'unknown'
+        else:
+            print(f"Warning: Unknown language code '{language_code}'. Using as-is in filename.")
+    
+    # Debug output to verify the language code
+    print(f"Using language code '{language_code}' for filename")
     
     filename = f"pr_{pr_number}_{language_code}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
     file_path = repo_output_dir / filename
@@ -1153,9 +1160,11 @@ def main():
     if args.language:
         # Single language mode
         languages = [args.language]
+        print(f"Using language specified by command line argument: {args.language}")
     else:
         # Use configuration setting if not specified in command line
         languages = config.get('output', {}).get('languages', ['en'])
+        print(f"Using languages from config: {', '.join(languages)}")
         
         # Validate languages
         valid_languages = list(LANGUAGE_MARKERS.keys())
@@ -1188,6 +1197,12 @@ def main():
     
     # Process each language
     for language in languages:
+        # Validate language
+        if not language or language == '':
+            print(f"Warning: Empty language code detected. Skipping.")
+            continue
+            
+        # Debug information
         print(f"\nProcessing {LANGUAGE_NAMES.get(language, language)} ({language}) report...")
         
         # Prepare language-specific prompt
@@ -1203,7 +1218,7 @@ def main():
         # Call LLM API
         report = call_llm_api(prompt, config, args.provider)
         
-        # Save report
+        # Save report - explicitly pass the language value to avoid any potential variable scope issues
         file_path = save_analysis_report(report, pr_data, analysis_dir, language)
         file_paths.append(file_path)
         print(f"{LANGUAGE_NAMES.get(language, language)} report saved to: {file_path}")
