@@ -328,6 +328,19 @@ def update_pr_reports():
             
             # Check if analysis was successful
             if returncode == 0:
+                # Extract the saved report path from stdout
+                report_path_match = re.search(r"Analysis report saved to: (.+\.md)", stdout)
+                multilingual_match = re.search(r"Multilingual analysis reports saved to:", stdout)
+                
+                if report_path_match:
+                    report_path = report_path_match.group(1)
+                    logger.info("Generated report saved to: %s", report_path)
+                elif multilingual_match:
+                    # Extract multiple report paths for multilingual output
+                    report_paths = re.findall(r"- (.+\.md)", stdout)
+                    for path in report_paths:
+                        logger.info("Generated report saved to: %s", path)
+                
                 # 7. Update processing status
                 logger.info("7. Updating PR processing status...")
                 returncode, stdout, stderr = run_script(
