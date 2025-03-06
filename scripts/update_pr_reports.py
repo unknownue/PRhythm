@@ -326,12 +326,36 @@ def update_pr_reports():
             # Ensure analysis directory exists
             analysis_dir = project_root / analysis_base_dir.lstrip('./')
             
-            # Check if path exists but is not a directory
-            if os.path.exists(analysis_dir) and not os.path.isdir(analysis_dir):
-                logger.warning("Path %s exists but is not a directory. Removing it...", analysis_dir)
-                os.remove(analysis_dir)
+            # Handle symlinks in Docker environment
+            try:
+                # Check if it's a symlink
+                if os.path.islink(analysis_dir):
+                    # Get the target of the symlink
+                    link_target = os.readlink(analysis_dir)
+                    logger.info("Analysis directory is a symlink pointing to: %s", link_target)
+                    
+                    # If relative path, make it absolute
+                    if not os.path.isabs(link_target):
+                        link_target = os.path.normpath(os.path.join(os.path.dirname(str(analysis_dir)), link_target))
+                    
+                    # Use the target directory instead
+                    analysis_dir = Path(link_target)
+                    logger.info("Using symlink target as analysis directory: %s", analysis_dir)
                 
-            os.makedirs(analysis_dir, exist_ok=True)
+                # Check if path exists but is not a directory
+                if os.path.exists(analysis_dir) and not os.path.isdir(analysis_dir):
+                    logger.warning("Path %s exists but is not a directory. Removing it...", analysis_dir)
+                    os.remove(analysis_dir)
+                
+                # Create the directory
+                os.makedirs(analysis_dir, exist_ok=True)
+                logger.info("Ensured analysis directory exists at: %s", analysis_dir)
+            except Exception as e:
+                logger.error("Error handling analysis directory: %s", str(e))
+                # Fallback to a directory we know should work in Docker
+                analysis_dir = Path("/tmp/prhythm_analysis")
+                os.makedirs(analysis_dir, exist_ok=True)
+                logger.warning("Using fallback analysis directory: %s", analysis_dir)
             
             # Run analyze_pr.py with explicit config path
             returncode, stdout, stderr = run_script(
