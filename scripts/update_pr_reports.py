@@ -100,24 +100,25 @@ def get_output_language_from_config(config):
         config: Configuration dictionary
         
     Returns:
-        str: Output language code or "multilingual" if multiple languages are configured
+        list: Output language codes list (never returns "multilingual")
     """
     if not config or 'output' not in config or 'languages' not in config['output']:
         logger.warning("Output languages not specified in config.json, defaulting to English (en)")
-        return "en"
+        return ["en"]
     
     languages = config['output']['languages']
     if not languages:
         logger.warning("Empty languages list in config.json, defaulting to English (en)")
-        return "en"
+        return ["en"]
     
-    if len(languages) > 1:
-        logger.info(f"Multiple languages configured in config.json: {', '.join(languages)}")
-        return "multilingual"
-    else:
-        language = languages[0]
-        logger.info(f"Using output language from config.json: {language}")
-        return language
+    # Return actual language list rather than "multilingual"
+    valid_languages = [lang for lang in languages if lang]
+    if not valid_languages:
+        logger.warning("No valid languages found in config.json, defaulting to English (en)")
+        return ["en"]
+        
+    logger.info(f"Using output languages from config.json: {', '.join(valid_languages)}")
+    return valid_languages
 
 def get_provider_from_config(config):
     """
@@ -262,7 +263,7 @@ def update_pr_reports():
         return 1
     
     # Get output language from config
-    output_language = get_output_language_from_config(config)
+    output_languages = get_output_language_from_config(config)
     
     # Get default provider from config
     default_provider = get_provider_from_config(config)
@@ -316,72 +317,72 @@ def update_pr_reports():
             logger.info("Found PR information file: %s", pr_json)
             
             # 6. Analyze PR using configured language and provider
-            logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
-                       pr_number, output_language, default_provider)
-            analyze_pr_script = project_root / "scripts" / "analyze_pr.py"
-            
-            # Get analysis directory from config
-            analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
-            
-            # Ensure analysis directory exists
-            analysis_dir = project_root / analysis_base_dir.lstrip('./')
-            
-            # Handle symlinks in Docker environment
-            try:
-                # Check if it's a symlink
-                if os.path.islink(analysis_dir):
-                    # Get the target of the symlink
-                    link_target = os.readlink(analysis_dir)
-                    logger.info("Analysis directory is a symlink pointing to: %s", link_target)
+            analysis_success = True
+            for output_language in output_languages:
+                logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
+                           pr_number, output_language, default_provider)
+                analyze_pr_script = project_root / "scripts" / "analyze_pr.py"
+                
+                # Get analysis directory from config
+                analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+                
+                # Ensure analysis directory exists
+                analysis_dir = project_root / analysis_base_dir.lstrip('./')
+                
+                # Handle symlinks in Docker environment
+                try:
+                    # Check if it's a symlink
+                    if os.path.islink(analysis_dir):
+                        # Get the target of the symlink
+                        link_target = os.readlink(analysis_dir)
+                        logger.info("Analysis directory is a symlink pointing to: %s", link_target)
+                        
+                        # If relative path, make it absolute
+                        if not os.path.isabs(link_target):
+                            link_target = os.path.normpath(os.path.join(os.path.dirname(str(analysis_dir)), link_target))
+                        
+                        # Use the target directory instead
+                        analysis_dir = Path(link_target)
+                        logger.info("Using symlink target as analysis directory: %s", analysis_dir)
                     
-                    # If relative path, make it absolute
-                    if not os.path.isabs(link_target):
-                        link_target = os.path.normpath(os.path.join(os.path.dirname(str(analysis_dir)), link_target))
+                    # Check if path exists but is not a directory
+                    if os.path.exists(analysis_dir) and not os.path.isdir(analysis_dir):
+                        logger.warning("Path %s exists but is not a directory. Removing it...", analysis_dir)
+                        os.remove(analysis_dir)
                     
-                    # Use the target directory instead
-                    analysis_dir = Path(link_target)
-                    logger.info("Using symlink target as analysis directory: %s", analysis_dir)
+                    # Create the directory
+                    os.makedirs(analysis_dir, exist_ok=True)
+                except Exception as e:
+                    logger.error("Error handling analysis directory: %s", str(e))
+                    # Fallback to a directory we know should work in Docker
+                    analysis_dir = Path("/tmp/prhythm_analysis")
+                    os.makedirs(analysis_dir, exist_ok=True)
+                    logger.warning("Using fallback analysis directory: %s", analysis_dir)
                 
-                # Check if path exists but is not a directory
-                if os.path.exists(analysis_dir) and not os.path.isdir(analysis_dir):
-                    logger.warning("Path %s exists but is not a directory. Removing it...", analysis_dir)
-                    os.remove(analysis_dir)
+                # Run analyze_pr.py with explicit config path
+                returncode, stdout, stderr = run_script(
+                    analyze_pr_script, 
+                    "--json", pr_json, 
+                    "--language", output_language,
+                    "--provider", default_provider,
+                    "--config", str(config_path)
+                )
                 
-                # Create the directory
-                os.makedirs(analysis_dir, exist_ok=True)
-            except Exception as e:
-                logger.error("Error handling analysis directory: %s", str(e))
-                # Fallback to a directory we know should work in Docker
-                analysis_dir = Path("/tmp/prhythm_analysis")
-                os.makedirs(analysis_dir, exist_ok=True)
-                logger.warning("Using fallback analysis directory: %s", analysis_dir)
+                # Check if analysis was successful
+                if returncode == 0:
+                    # Extract the saved report path from stdout
+                    report_path_match = re.search(r"Saved analysis report: (.+\.md)", stdout)
+                    
+                    if report_path_match:
+                        report_path = report_path_match.group(1)
+                        logger.info("Generated report saved to: %s", report_path)
+                else:
+                    logger.error("Failed to analyze PR #%s in %s language: %s", pr_number, output_language, stderr)
+                    analysis_success = False
             
-            # Run analyze_pr.py with explicit config path
-            returncode, stdout, stderr = run_script(
-                analyze_pr_script, 
-                "--json", pr_json, 
-                "--language", output_language,
-                "--provider", default_provider,
-                "--config", str(config_path)
-            )
-            
-            # Check if analysis was successful
-            if returncode == 0:
-                # Extract the saved report path from stdout
-                report_path_match = re.search(r"Saved analysis report: (.+\.md)", stdout)
-                multilingual_match = re.search(r"Multilingual analysis reports saved to:", stdout)
-                
-                if report_path_match:
-                    report_path = report_path_match.group(1)
-                    logger.info("Generated report saved to: %s", report_path)
-                elif multilingual_match:
-                    # Extract multiple report paths for multilingual output
-                    report_paths = re.findall(r"- (.+\.md)", stdout)
-                    for path in report_paths:
-                        logger.info("Generated report saved to: %s", path)
-                
-                # 7. Update processing status
-                logger.info("7. Updating PR processing status...")
+            # 7. Update processing status (after all languages are processed)
+            logger.info("7. Updating PR processing status...")
+            if analysis_success:
                 returncode, stdout, stderr = run_script(
                     track_merged_prs_script,
                     "--repo", repo,
@@ -391,7 +392,7 @@ def update_pr_reports():
                 )
                 logger.info("PR #%s analysis completed", pr_number)
             else:
-                logger.error("PR #%s analysis failed: %s", pr_number, stderr)
+                logger.error("PR #%s analysis failed for one or more languages", pr_number)
                 returncode, stdout, stderr = run_script(
                     track_merged_prs_script,
                     "--repo", repo,

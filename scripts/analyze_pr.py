@@ -1001,10 +1001,12 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     # Validate the language code against our known languages
     if language_code not in LANGUAGE_MARKERS:
         if language_code == 'multilingual':
-            print(f"Warning: 'multilingual' is no longer a valid output language. Using 'unknown' in filename.")
-            language_code = 'unknown'
+            print(f"Warning: 'multilingual' is not a valid output language. Using 'en' as default in filename.")
+            language_code = 'en'
         else:
-            print(f"Warning: Unknown language code '{language_code}'. Using as-is in filename.")
+            # Make sure we never use 'unknown' as a language code in the filename
+            print(f"Warning: Unknown language code '{language_code}'. Defaulting to 'en' for filename.")
+            language_code = 'en'
     
     # Debug output to verify the language code
     print(f"Using language code '{language_code}' for filename")
