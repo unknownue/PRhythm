@@ -5,30 +5,21 @@
 Check and clone tracked repositories from config.json to output directories
 """
 
-import json
 import sys
-import os
-import subprocess
 import argparse
 from pathlib import Path
 
-def read_config(config_path):
-    """
-    Read configuration file and return its contents
-    
-    Args:
-        config_path: Path to the configuration file
-        
-    Returns:
-        dict: Configuration contents
-    """
-    try:
-        with open(config_path, 'r') as file:
-            config = json.load(file)
-            return config
-    except Exception as e:
-        print(f"Error reading configuration file: {e}")
-        return None
+# Import common utilities
+from common import (
+    read_config, 
+    ensure_directory, 
+    run_command, 
+    get_project_root,
+    setup_logging
+)
+
+# Setup logger
+logger = setup_logging("check_pull_repo")
 
 def create_output_dirs(project_root, repositories, config):
     """
@@ -52,7 +43,7 @@ def create_output_dirs(project_root, repositories, config):
         repos_dir = Path(repos_base_dir)
     
     # Create main output directory if it doesn't exist
-    repos_dir.mkdir(exist_ok=True, parents=True)
+    ensure_directory(repos_dir)
     
     # Create directories for each repository
     repo_dirs = {}
@@ -62,7 +53,7 @@ def create_output_dirs(project_root, repositories, config):
         
         # Create repository-specific directory
         repo_dir = repos_dir / repo_name
-        repo_dir.mkdir(exist_ok=True)
+        ensure_directory(repo_dir)
         
         repo_dirs[repo] = repo_dir
     
@@ -81,28 +72,27 @@ def clone_repository(repo, repo_dir, skip_clone=False):
         bool: True if successful, False otherwise
     """
     if skip_clone:
-        print(f"Skipping clone/pull for repository: {repo}")
+        logger.info(f"Skipping clone/pull for repository: {repo}")
         return True
         
     try:
         if repo_dir.exists() and (repo_dir / ".git").exists():
             # Repository already exists, pull latest changes
-            print(f"Updating existing repository: {repo}")
+            logger.info(f"Updating existing repository: {repo}")
             cmd = f"cd {repo_dir} && git pull"
-            subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+            run_command(cmd)
         else:
             # Clone the repository
-            print(f"Cloning repository: {repo}")
+            logger.info(f"Cloning repository: {repo}")
             cmd = f"git clone https://github.com/{repo}.git {repo_dir}"
-            subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+            run_command(cmd, timeout=300)  # Longer timeout for cloning
         
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"Error cloning/pulling repository {repo}: {e}")
-        print(f"Error output: {e.stderr}")
+    except TimeoutError as e:
+        logger.error(f"Timeout error with repository {repo}: {e}")
         return False
     except Exception as e:
-        print(f"Unexpected error with repository {repo}: {e}")
+        logger.error(f"Unexpected error with repository {repo}: {e}")
         return False
 
 def parse_arguments():
@@ -110,6 +100,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Check and clone tracked repositories')
     parser.add_argument('--skip-clone', action='store_true', 
                         help='Skip cloning repositories, only create directories')
+    parser.add_argument('--config', type=str, default="config.json",
+                        help='Path to the configuration file')
     return parser.parse_args()
 
 def main():
@@ -118,33 +110,33 @@ def main():
     args = parse_arguments()
     
     # Get project root directory
-    script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    project_root = script_dir.parent
+    project_root = get_project_root()
     
     # Configuration file path
-    config_path = project_root / "config.json"
+    config_path = project_root / args.config
     
     # Read configuration
-    config = read_config(config_path)
-    
-    if not config:
+    try:
+        config = read_config(config_path)
+    except Exception as e:
+        logger.error(f"Failed to read configuration: {e}")
         sys.exit(1)
     
     # Get repositories list
     if 'github' not in config or 'repositories' not in config['github']:
-        print("No GitHub repository information found in configuration file")
+        logger.error("No GitHub repository information found in configuration file")
         sys.exit(1)
     
     repositories = config['github']['repositories']
     
     if not repositories:
-        print("No GitHub repositories configured")
+        logger.error("No GitHub repositories configured")
         sys.exit(1)
     
     # Print tracked repositories
-    print("Tracked PR repositories:")
+    logger.info("Tracked PR repositories:")
     for repo in repositories:
-        print(f"- {repo}")
+        logger.info(f"- {repo}")
     
     # Create output directories
     repo_dirs = create_output_dirs(project_root, repositories, config)
@@ -155,7 +147,7 @@ def main():
         if clone_repository(repo, repo_dir, args.skip_clone):
             success_count += 1
     
-    print(f"\nSuccessfully processed {success_count} out of {len(repositories)} repositories")
+    logger.info(f"\nSuccessfully processed {success_count} out of {len(repositories)} repositories")
 
 if __name__ == "__main__":
     main() 

@@ -7,36 +7,29 @@ that indicates the latest processed PR number for batch operations.
 This script also outputs unsynchronized merged PRs.
 """
 
-import json
 import sys
-import os
 import argparse
 import requests
-import re
 from pathlib import Path
 from datetime import datetime
+
+# Import common utilities
+from common import (
+    read_config,
+    get_project_root,
+    setup_logging,
+    validate_repo_url,
+    ensure_directory,
+    save_json,
+    load_json
+)
+
+# Setup logger
+logger = setup_logging("track_merged_prs")
 
 # GitHub API rate limits can be an issue, consider using authentication
 # if you encounter rate limiting problems
 GITHUB_API_BASE = "https://api.github.com"
-
-def read_config(config_path):
-    """
-    Read configuration file and return its contents
-    
-    Args:
-        config_path: Path to the configuration file
-        
-    Returns:
-        dict: Configuration contents
-    """
-    try:
-        with open(config_path, 'r') as file:
-            config = json.load(file)
-            return config
-    except Exception as e:
-        print(f"Error reading configuration file: {e}")
-        return None
 
 def get_status_file_path(project_root, config):
     """
@@ -59,7 +52,7 @@ def get_status_file_path(project_root, config):
         repos_dir = Path(repos_base_dir)
     
     # Create directory if it doesn't exist
-    repos_dir.mkdir(exist_ok=True, parents=True)
+    ensure_directory(repos_dir)
     
     return repos_dir / "pr_processing_status.json"
 
@@ -75,10 +68,9 @@ def read_status_file(status_file_path):
     """
     if status_file_path.exists():
         try:
-            with open(status_file_path, 'r') as file:
-                return json.load(file)
+            return load_json(status_file_path)
         except Exception as e:
-            print(f"Error reading status file: {e}")
+            logger.error(f"Error reading status file: {e}")
             # Return a new status object if there's an error
     
     # Default status structure
@@ -103,33 +95,11 @@ def write_status_file(status_file_path, status_data):
         # Update the last updated timestamp
         status_data["last_updated"] = datetime.now().isoformat()
         
-        with open(status_file_path, 'w') as file:
-            json.dump(status_data, file, indent=2)
+        save_json(status_data, status_file_path)
         return True
     except Exception as e:
-        print(f"Error writing status file: {e}")
+        logger.error(f"Error writing status file: {e}")
         return False
-
-def validate_repo_url(repo_url):
-    """
-    Validate and normalize the repository URL
-    
-    Args:
-        repo_url: Repository URL or owner/repo format
-        
-    Returns:
-        str: Repository in owner/repo format
-    """
-    # If it's already in owner/repo format
-    if re.match(r'^[^/]+/[^/]+$', repo_url):
-        return repo_url
-    
-    # Extract owner/repo from GitHub URL
-    match = re.search(r'github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$', repo_url)
-    if match:
-        return match.group(1)
-    
-    raise ValueError(f"Invalid repository format: {repo_url}. Expected format: owner/repo or GitHub URL")
 
 def get_merged_prs(repo, token=None, limit=10):
     """
@@ -150,19 +120,19 @@ def get_merged_prs(repo, token=None, limit=10):
     url = f"{GITHUB_API_BASE}/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page={limit}"
     
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         
         # Filter to only merged PRs
         merged_prs = [pr for pr in response.json() if pr.get("merged_at")]
         
         if not merged_prs:
-            print(f"No merged PRs found for {repo}")
+            logger.info(f"No merged PRs found for {repo}")
             return []
         
         return merged_prs
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching PRs for {repo}: {e}")
+        logger.error(f"Error fetching PRs for {repo}: {e}")
         return []
 
 def get_repo_status(status_data, repo):
@@ -250,16 +220,11 @@ def find_unsynced_prs(merged_prs, latest_processed_pr):
 
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Track merged PRs and output unsynced PRs')
-    parser.add_argument('--repo', required=True, help='Repository URL or owner/repo format')
-    parser.add_argument('--token', help='GitHub API token for authentication')
-    parser.add_argument('--update', action='store_true', 
-                        help='Update the status file with the latest PR')
-    parser.add_argument('--operation', help='Name of the batch operation (used with --update)')
-    parser.add_argument('--status', choices=['success', 'failure'], default='success',
-                        help='Status of the operation (used with --update and --operation)')
-    parser.add_argument('--limit', type=int, default=10, 
-                        help='Maximum number of PRs to fetch')
+    parser = argparse.ArgumentParser(description='Track merged PRs for repositories')
+    parser.add_argument('--repo', help='Repository name in owner/repo format or GitHub URL')
+    parser.add_argument('--token', help='GitHub API token (optional)')
+    parser.add_argument('--limit', type=int, default=10, help='Maximum number of PRs to fetch (default: 10)')
+    parser.add_argument('--config', type=str, default="config.json", help='Path to the configuration file')
     return parser.parse_args()
 
 def main():
@@ -268,75 +233,64 @@ def main():
     args = parse_arguments()
     
     # Get project root directory
-    script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    project_root = script_dir.parent
+    project_root = get_project_root()
     
-    # Read configuration
-    config_path = project_root / "config.json"
-    config = read_config(config_path)
+    # Configuration file path
+    config_path = project_root / args.config
     
-    # Validate and normalize repository URL
     try:
-        repo = validate_repo_url(args.repo)
-    except ValueError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    
-    # Get status file path
-    status_file_path = get_status_file_path(project_root, config)
-    
-    # Read current status
-    status_data = read_status_file(status_file_path)
-    
-    # Get repository status
-    repo_status = get_repo_status(status_data, repo)
-    latest_processed_pr = repo_status.get("latest_processed_pr", 0)
-    
-    print(f"Checking merged PRs for {repo}...")
-    print(f"Latest processed PR: #{latest_processed_pr}")
-    
-    # Get merged PRs
-    merged_prs = get_merged_prs(repo, args.token, args.limit)
-    
-    if not merged_prs:
-        print("No merged PRs found.")
-        sys.exit(0)
-    
-    # Find unsynced PRs
-    unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr)
-    
-    if not unsynced_prs:
-        print("No unsynced PRs found. Repository is up to date.")
-        sys.exit(0)
-    
-    # Output unsynced PRs
-    print(f"\nFound {len(unsynced_prs)} unsynced PRs:")
-    for pr in unsynced_prs:
-        print(f"#{pr['number']} - {pr['title']} (merged by {pr.get('merged_by', {}).get('login', 'Unknown')})")
-    
-    # If no PRs have been processed yet, output the latest merged PR
-    if latest_processed_pr == 0 and merged_prs:
-        latest_pr = merged_prs[0]
-        print(f"\nNo PRs have been processed yet. Latest merged PR: #{latest_pr['number']} - {latest_pr['title']}")
-    
-    # Update status file if requested
-    if args.update:
-        if unsynced_prs:
-            # Update with the latest unsynced PR
-            latest_unsynced_pr = unsynced_prs[0]
-            success = args.status == 'success'
-            
-            if update_repo_status(status_data, repo, latest_unsynced_pr, args.operation, success):
-                print(f"\nUpdated status for {repo} - Latest PR: #{latest_unsynced_pr['number']} - {latest_unsynced_pr['title']}")
-                
-                if write_status_file(status_file_path, status_data):
-                    print(f"Status file updated: {status_file_path}")
-                else:
-                    print("Failed to update status file")
-            else:
-                print(f"No updates to status file needed")
+        # Read configuration
+        config = read_config(config_path)
+        
+        # Get repositories list from arguments or config
+        if args.repo:
+            repositories = [validate_repo_url(args.repo)]
         else:
-            print("No updates to status file needed")
+            if not config or 'github' not in config or 'repositories' not in config['github']:
+                logger.error("No repositories found in configuration")
+                sys.exit(1)
+            
+            repositories = config['github']['repositories']
+        
+        # Get status file path
+        status_file_path = get_status_file_path(project_root, config)
+        
+        # Read status file
+        status_data = read_status_file(status_file_path)
+        
+        # Process each repository
+        updated = False
+        for repo in repositories:
+            # Get repository status
+            repo_status = get_repo_status(status_data, repo)
+            latest_processed_pr = repo_status["latest_processed_pr"]
+            
+            # Get merged PRs
+            logger.info(f"Fetching merged PRs for {repo}...")
+            merged_prs = get_merged_prs(repo, args.token, args.limit)
+            
+            # Find unsynced PRs
+            unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr)
+            
+            if unsynced_prs:
+                logger.info(f"Found {len(unsynced_prs)} unsynced PR(s) for {repo}")
+                for pr in unsynced_prs:
+                    print(f"#{pr['number']} - {pr['title']} ({pr['html_url']})")
+                    
+                # Update repository status with the latest PR
+                if update_repo_status(status_data, repo, unsynced_prs[0], "track_merged_prs"):
+                    updated = True
+            else:
+                logger.info(f"No unsynced PRs found for {repo}")
+        
+        # Write status file if updated
+        if updated:
+            write_status_file(status_file_path, status_data)
+            logger.info(f"Status file updated: {status_file_path}")
+        
+    except Exception as e:
+        logger.error(f"Error processing PRs: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main() 

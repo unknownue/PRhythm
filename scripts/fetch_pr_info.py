@@ -15,23 +15,20 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-def read_config(config_path):
-    """
-    Read configuration file and return its contents
-    
-    Args:
-        config_path: Path to the configuration file
-        
-    Returns:
-        dict: Configuration contents
-    """
-    try:
-        with open(config_path, 'r') as file:
-            config = json.load(file)
-            return config
-    except Exception as e:
-        print(f"Error reading configuration file: {e}")
-        sys.exit(1)
+# Import common utilities
+from common import (
+    read_config,
+    ensure_directory,
+    run_command,
+    get_project_root,
+    setup_logging,
+    validate_repo_url,
+    save_json,
+    retry_operation
+)
+
+# Setup logger
+logger = setup_logging("fetch_pr_info")
 
 def ensure_output_dir(project_root, repo, config):
     """
@@ -55,7 +52,7 @@ def ensure_output_dir(project_root, repo, config):
         output_dir = Path(output_base_dir)
     
     # Create main output directory if it doesn't exist
-    output_dir.mkdir(exist_ok=True, parents=True)
+    ensure_directory(output_dir)
     
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
@@ -65,30 +62,9 @@ def ensure_output_dir(project_root, repo, config):
     
     # Create repository-specific directory with month subdirectory
     repo_output_dir = output_dir / repo_name / month_dir
-    repo_output_dir.mkdir(exist_ok=True, parents=True)
+    ensure_directory(repo_output_dir)
     
     return repo_output_dir
-
-def validate_repo_url(repo_url):
-    """
-    Validate and normalize the repository URL
-    
-    Args:
-        repo_url: Repository URL or owner/repo format
-        
-    Returns:
-        str: Repository in owner/repo format
-    """
-    # If it's already in owner/repo format
-    if re.match(r'^[^/]+/[^/]+$', repo_url):
-        return repo_url
-    
-    # Extract owner/repo from GitHub URL
-    match = re.search(r'github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$', repo_url)
-    if match:
-        return match.group(1)
-    
-    raise ValueError(f"Invalid repository format: {repo_url}. Expected format: owner/repo or GitHub URL")
 
 def fetch_pr_info(repo, pr_number):
     """
@@ -104,7 +80,7 @@ def fetch_pr_info(repo, pr_number):
     try:
         # Fetch basic PR info - removed commits and comments from the JSON fields
         cmd = f"gh pr view {pr_number} --repo {repo} --json number,title,url,state,author,createdAt,mergedAt,mergedBy,body,files,reviews"
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = run_command(cmd)
         pr_data = json.loads(result.stdout)
         
         # Remove content from reviews fields, set to empty list
@@ -113,15 +89,15 @@ def fetch_pr_info(repo, pr_number):
         
         # Fetch PR diff
         cmd_diff = f"gh pr diff {pr_number} --repo {repo}"
-        result_diff = subprocess.run(cmd_diff, shell=True, check=True, capture_output=True, text=True)
+        result_diff = run_command(cmd_diff)
         pr_data["diff"] = result_diff.stdout
         
         # Fetch PR checks
         cmd_checks = f"gh pr checks {pr_number} --repo {repo} --json checkSuites,statusCheckRollup"
         try:
-            result_checks = subprocess.run(cmd_checks, shell=True, check=True, capture_output=True, text=True)
+            result_checks = run_command(cmd_checks)
             pr_data["checks"] = json.loads(result_checks.stdout)
-        except subprocess.CalledProcessError:
+        except Exception:
             # Some PRs might not have checks
             pr_data["checks"] = None
         
@@ -130,13 +106,9 @@ def fetch_pr_info(repo, pr_number):
         pr_data["repository"] = repo
         
         return pr_data
-    except subprocess.CalledProcessError as e:
-        print(f"Error fetching PR information: {e}")
-        print(f"Error output: {e.stderr}")
-        sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        sys.exit(1)
+        logger.error(f"Error fetching PR information: {e}")
+        raise
 
 def save_pr_info(output_dir, repo, pr_number, pr_data):
     """
@@ -158,13 +130,7 @@ def save_pr_info(output_dir, repo, pr_number, pr_data):
     filename = f"pr_{pr_number}_{current_date.strftime('%Y%m%d_%H%M%S')}.json"
     file_path = output_dir / filename
     
-    try:
-        with open(file_path, 'w') as file:
-            json.dump(pr_data, file, indent=2)
-        return file_path
-    except Exception as e:
-        print(f"Error saving PR information: {e}")
-        sys.exit(1)
+    return save_json(pr_data, file_path)
 
 def analyze_key_commits(pr_data):
     """
@@ -390,9 +356,16 @@ def format_module_context(module_context):
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Fetch PR information using GitHub CLI')
-    parser.add_argument('--repo', required=True, help='Repository URL or owner/repo format')
-    parser.add_argument('--pr', required=True, type=int, help='PR number to fetch')
-    parser.add_argument('--repo-path', help='Path to local repository clone (optional, for better context)')
+    parser.add_argument('--repo', type=str, required=True, 
+                        help='Repository name in owner/repo format or GitHub URL')
+    parser.add_argument('--pr', type=int, required=True, 
+                        help='PR number')
+    parser.add_argument('--config', type=str, default="config.json",
+                        help='Path to the configuration file')
+    parser.add_argument('--repo-path', type=str, 
+                        help='Path to local repository clone (optional)')
+    parser.add_argument('--skip-context', action='store_true', 
+                        help='Skip fetching module context and file contents')
     return parser.parse_args()
 
 def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
@@ -550,59 +523,52 @@ def main():
     args = parse_arguments()
     
     # Get project root directory
-    script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
-    project_root = script_dir.parent
+    project_root = get_project_root()
     
-    # Read configuration
-    config_path = project_root / "config.json"
-    config = read_config(config_path)
+    # Configuration file path
+    config_path = project_root / args.config
     
-    # Validate and normalize repository URL
     try:
+        # Read configuration
+        config = read_config(config_path)
+        
+        # Validate and normalize repository URL
         repo = validate_repo_url(args.repo)
-    except ValueError as e:
-        print(f"Error: {e}")
+        
+        # Ensure output directory exists
+        output_dir = ensure_output_dir(project_root, repo, config)
+        
+        # Fetch PR information
+        logger.info(f"Fetching PR information for {repo}#{args.pr}")
+        pr_data = fetch_pr_info(repo, args.pr)
+        
+        # Fetch repository content if necessary
+        if not args.skip_context:
+            # Fetch repository content for context
+            repo_path = args.repo_path
+            logger.info(f"Fetching repository content from {repo_path if repo_path else 'GitHub API'}")
+            
+            # Use retry for fetching content from remote repositories
+            try:
+                repo_data = retry_operation(
+                    lambda: fetch_repo_content(repo, args.pr, repo_path, config)
+                )
+                # Update PR data with repository content
+                pr_data.update(repo_data)
+            except Exception as e:
+                logger.warning(f"Unable to fetch repository content: {e}")
+                logger.warning("Continuing without repository context")
+        
+        # Save PR information
+        file_path = save_pr_info(output_dir, repo, args.pr, pr_data)
+        logger.info(f"PR information saved to {file_path}")
+        
+        # Print the path to the saved file for use by other scripts
+        print(file_path)
+        
+    except Exception as e:
+        logger.error(f"Error processing PR: {e}")
         sys.exit(1)
-    
-    # Ensure repository-specific output directory exists
-    output_dir = ensure_output_dir(project_root, repo, config)
-    
-    print(f"Fetching information for PR #{args.pr} from repository {repo}...")
-    
-    # Pull repository content - this will exit if repository doesn't exist
-    repo_path = fetch_repo_content(repo, args.pr, args.repo_path, config)
-    
-    # Fetch PR information
-    pr_data = fetch_pr_info(repo, args.pr)
-    
-    # Fetch module context and add to PR data
-    print(f"Fetching module context using repository at {repo_path}...")
-    pr_data['module_context'] = fetch_module_context(pr_data, repo_path)
-    
-    # Fetch modified file contents and add to PR data
-    print("Fetching modified file contents...")
-    pr_data['modified_file_contents'] = fetch_modified_file_contents(pr_data, repo_path)
-    
-    # No need to clean up temporary directory as we're using existing repos
-    
-    # Analyze key commits and add to PR data
-    print("Adding commit analysis placeholder...")
-    pr_data['commit_analysis'] = analyze_key_commits(pr_data)
-    
-    # Save PR information
-    file_path = save_pr_info(output_dir, repo, args.pr, pr_data)
-    
-    print(f"PR information saved to: {file_path}")
-    print(f"Title: {pr_data.get('title', 'Unknown')}")
-    print(f"State: {pr_data.get('state', 'Unknown')}")
-    print(f"Author: {pr_data.get('author', {}).get('login', 'Unknown')}")
-    
-    # Print summary of fetched data
-    num_files = len(pr_data.get('files', []))
-    num_modified_files_with_content = len(pr_data.get('modified_file_contents', {}))
-    
-    print(f"Fetched {num_files} files")
-    print(f"Fetched content for {num_modified_files_with_content} modified files")
 
 if __name__ == "__main__":
     main() 

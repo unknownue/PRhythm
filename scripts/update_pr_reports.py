@@ -18,30 +18,26 @@ Usage:
     python update_pr_reports.py --schedule 3600  # Run every hour (3600 seconds)
 """
 
-import os
 import sys
-import json
-import time
-import subprocess
 import re
 import glob
 import argparse
+import importlib.util
 from pathlib import Path
 from datetime import datetime
-import importlib.util
-import logging
+import time
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%H:%M:%S',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('update_pr_reports.log')
-    ]
+# Import common utilities
+from common import (
+    read_config,
+    get_project_root,
+    setup_logging,
+    run_command,
+    ensure_directory
 )
-logger = logging.getLogger('update_pr_reports')
+
+# Setup logger
+logger = setup_logging("update_pr_reports")
 
 def parse_arguments():
     """
@@ -56,25 +52,13 @@ def parse_arguments():
         type=int, 
         help='Schedule interval in seconds. If provided, the script will run periodically at this interval. If not provided, the script will run once and exit.'
     )
+    parser.add_argument(
+        '--config', 
+        type=str, 
+        default="config.json",
+        help='Path to the configuration file'
+    )
     return parser.parse_args()
-
-def read_config(config_path):
-    """
-    Read configuration file and return its contents
-    
-    Args:
-        config_path: Path to the configuration file
-        
-    Returns:
-        dict: Configuration contents
-    """
-    try:
-        with open(config_path, 'r') as file:
-            config = json.load(file)
-            return config
-    except Exception as e:
-        logger.error(f"Error reading configuration file: {e}")
-        return None
 
 def get_repositories_from_config(config):
     """
@@ -138,26 +122,36 @@ def get_provider_from_config(config):
     logger.info(f"Using LLM provider from config.json: {provider}")
     return provider
 
-def run_script(script_path, *args):
+def run_script(script_path, *args, timeout=300):
     """
-    Run a Python script with arguments
+    Run a Python script with arguments and timeout
     
     Args:
         script_path: Path to the script
         *args: Arguments to pass to the script
+        timeout: Timeout in seconds for script execution
         
     Returns:
         tuple: (return_code, stdout, stderr)
     """
+    import subprocess
+    
     cmd = [sys.executable, str(script_path)] + list(args)
-    process = subprocess.Popen(
-        cmd, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE,
-        text=True
-    )
-    stdout, stderr = process.communicate()
-    return process.returncode, stdout, stderr
+    try:
+        process = subprocess.Popen(
+            cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        stdout, stderr = process.communicate(timeout=timeout)
+        return process.returncode, stdout, stderr
+    except subprocess.TimeoutExpired:
+        # Kill the process if it times out
+        process.kill()
+        _, _ = process.communicate()
+        logger.error(f"Script execution timed out after {timeout} seconds: {script_path}")
+        return 1, "", f"Execution timed out after {timeout} seconds"
 
 def import_script(script_path):
     """
@@ -169,7 +163,7 @@ def import_script(script_path):
     Returns:
         module: Imported module
     """
-    script_name = os.path.basename(script_path).replace('.py', '')
+    script_name = Path(script_path).stem
     spec = importlib.util.spec_from_file_location(script_name, script_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -220,7 +214,7 @@ def find_pr_json_file(repo_name, pr_number, config):
     
     if monthly_files:
         # Sort by modification time (newest first)
-        return sorted(monthly_files, key=os.path.getmtime, reverse=True)[0]
+        return sorted(monthly_files, key=lambda f: Path(f).stat().st_mtime, reverse=True)[0]
     
     # If not found in monthly directory, search in main directory
     main_pattern = f"{output_base_dir}/{repo_name}/pr_{pr_number}_*.json"
@@ -228,15 +222,14 @@ def find_pr_json_file(repo_name, pr_number, config):
     
     if main_files:
         # Sort by modification time (newest first)
-        return sorted(main_files, key=os.path.getmtime, reverse=True)[0]
+        return sorted(main_files, key=lambda f: Path(f).stat().st_mtime, reverse=True)[0]
     
     return None
 
 def update_pr_reports():
     """Process PR reports update workflow"""
     # Get project root directory
-    project_root = Path(__file__).resolve().parent.parent
-    os.chdir(project_root)
+    project_root = get_project_root()
     
     logger.info("===== PR Analysis Update Started %s =====", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     
@@ -410,22 +403,40 @@ def update_pr_reports():
     return 0
 
 def main():
-    """Main function to update PR reports"""
+    """Main function"""
     args = parse_arguments()
     
-    if args.schedule:
-        logger.info("Running in scheduled mode with interval of %d seconds", args.schedule)
-        try:
+    # Get project root directory
+    project_root = get_project_root()
+    
+    # Ensure logs directory exists
+    logs_dir = project_root / "logs"
+    ensure_directory(logs_dir)
+    
+    # Configuration file path
+    config_path = project_root / args.config
+    
+    try:
+        # Read configuration
+        config = read_config(config_path)
+        
+        if args.schedule:
+            logger.info("Running in scheduled mode (interval: %d seconds)", args.schedule)
+            
             while True:
                 update_pr_reports()
-                logger.info("Waiting for next scheduled run in %d seconds...", args.schedule)
+                logger.info("Sleeping for %d seconds before next run...", args.schedule)
                 time.sleep(args.schedule)
-        except KeyboardInterrupt:
-            logger.info("Scheduled updates interrupted by user")
-            return 0
-    else:
-        logger.info("Running in one-time mode")
-        return update_pr_reports()
+        else:
+            logger.info("Running in single-execution mode")
+            update_pr_reports()
+            
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        logger.error("Error in main function: %s", e)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    main() 
