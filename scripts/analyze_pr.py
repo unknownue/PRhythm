@@ -27,6 +27,12 @@ from common import (
     ensure_directory,
 )
 
+# Import fetch_module_context from fetch_pr_info
+from fetch_pr_info import fetch_module_context
+
+# Import get_provider_from_config from update_pr_reports
+from update_pr_reports import get_provider_from_config
+
 # Setup logger
 logger = setup_logging("analyze_pr")
 
@@ -1009,9 +1015,9 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     repo_output_dir = output_dir / repo_name / month_dir
     
     # Ensure directory exists with proper permissions
-    os.makedirs(repo_output_dir, exist_ok=True)
+    ensure_directory(repo_output_dir)
     
-    # Create a filename - ensure we use a valid language code in the filename
+    # Get PR number
     pr_number = pr_data.get('number', 'unknown')
     
     # Ensure we're using a valid language code
@@ -1026,9 +1032,6 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
             # Make sure we never use 'unknown' as a language code in the filename
             print(f"Warning: Unknown language code '{language_code}'. Defaulting to 'en' for filename.")
             language_code = 'en'
-    
-    # Debug output to verify the language code
-    print(f"Using language code '{language_code}' for filename")
     
     # Create a base filename
     base_filename = f"pr_{pr_number}_{language_code}_{date_str}"
@@ -1061,8 +1064,8 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
         print(f"Saved analysis report: {abs_file_path}")
         return file_path
     except Exception as e:
-        print(f"Error saving analysis report: {e}")
-        sys.exit(1)
+        logger.error(f"Error saving analysis report: {e}")
+        raise
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -1161,6 +1164,14 @@ def main():
         # Read configuration
         config = read_config(config_path)
         
+        # Get analysis directory from config
+        analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')
+        # Convert relative path to absolute if needed
+        if analysis_base_dir.startswith('./') or analysis_base_dir.startswith('../'):
+            analysis_dir = project_root / analysis_base_dir.lstrip('./')
+        else:
+            analysis_dir = Path(analysis_base_dir)
+        
         # Determine JSON file path
         if args.json:
             json_file_path = Path(args.json)
@@ -1204,7 +1215,7 @@ def main():
         
         # Save analysis report
         logger.info("Saving analysis report")
-        output_path = save_analysis_report(response, pr_data, project_root / "reports", output_language)
+        output_path = save_analysis_report(response, pr_data, analysis_dir, output_language)
         logger.info(f"Analysis report saved to {output_path}")
         
         # Print report path
