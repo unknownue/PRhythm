@@ -1180,7 +1180,7 @@ def main():
         logger.info(f"Output language: {output_language} ({LANGUAGE_NAMES.get(output_language, 'Unknown')})")
         
         # Read prompt template
-        prompt_path = project_root / "templates" / "pr_analysis_prompt.txt"
+        prompt_path = project_root / "prompt" / "analyze_pr.prompt"
         prompt_template = read_prompt_template(prompt_path)
         
         # Prepare prompt
