@@ -14,6 +14,7 @@ import subprocess
 import re
 from pathlib import Path
 from datetime import datetime
+import time
 
 # Import common utilities
 from common import (
@@ -116,7 +117,7 @@ def save_pr_info(output_dir, repo, pr_number, pr_data):
     
     Args:
         output_dir: Output directory
-        repo: Repository name (owner/repo)
+        repo: Repository name
         pr_number: PR number
         pr_data: PR information
         
@@ -125,9 +126,27 @@ def save_pr_info(output_dir, repo, pr_number, pr_data):
     """
     # Get current date for consistent timestamp
     current_date = datetime.now()
+    date_str = current_date.strftime('%Y%m%d')
     
-    # Create a filename without the repo part since it's already in the directory structure
-    filename = f"pr_{pr_number}_{current_date.strftime('%Y%m%d_%H%M%S')}.json"
+    # Create a base filename without the repo part since it's already in the directory structure
+    base_filename = f"pr_{pr_number}_{date_str}"
+    
+    # Check if files with the base name already exist
+    existing_files = list(output_dir.glob(f"{base_filename}*.json"))
+    
+    if not existing_files:
+        # First file - use base filename
+        filename = f"{base_filename}.json"
+    else:
+        # Subsequent files - add number starting from 1
+        next_number = 1
+        filename = f"{base_filename}_{next_number}.json"
+        
+        # Find a unique filename
+        while output_dir / filename in existing_files:
+            next_number += 1
+            filename = f"{base_filename}_{next_number}.json"
+    
     file_path = output_dir / filename
     
     return save_json(pr_data, file_path)
@@ -368,18 +387,16 @@ def parse_arguments():
                         help='Skip fetching module context and file contents')
     return parser.parse_args()
 
-def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
+def get_repo_path(repo, config=None):
     """
-    Pull repository content to ensure we're analyzing the current version of the PR
+    Get the default repository path
     
     Args:
-        repo: Repository name (owner/repo)
-        pr_number: PR number
-        repo_path: Local repository path (optional)
-        config: Configuration dictionary
+        repo: Repository URL
+        config: Configuration data
         
     Returns:
-        str: Repository path used for analysis
+        Path: Default repository path
     """
     # Get project root directory for repos path
     script_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -398,22 +415,64 @@ def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
     
     # Extract repo name from owner/repo format
     repo_name = repo.split('/')[-1]
-    default_repo_path = repos_dir / repo_name
+    return repos_dir / repo_name
+
+def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
+    """
+    Fetch repository content for the PR
     
-    # If a specific repo_path is provided, use it
+    Args:
+        repo: Repository URL
+        pr_number: PR number
+        repo_path: Local repository path (optional)
+        config: Configuration data
+        
+    Returns:
+        dict: Repository path data
+    """
+    # Get default repository path
+    default_repo_path = get_repo_path(repo, config)
+    
+    # If repo_path is provided, use that directory
     if repo_path:
         try:
-            # Verify the repository exists
+            # Ensure the path exists
             if not os.path.exists(repo_path):
                 print(f"Error: Repository path {repo_path} does not exist")
                 sys.exit(1)
-                
+            
+            print(f"Using custom repository path: {repo_path}")
+            
             # Change to the repository directory
             os.chdir(repo_path)
             
             # Get current branch
             cmd = "git branch --show-current"
             current_branch = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True).stdout.strip()
+            print(f"Current branch before PR operations: {current_branch}")
+            
+            # Check if we're already on the PR branch we want to create
+            if current_branch == f"pr_{pr_number}":
+                print(f"Already on PR branch pr_{pr_number}, switching to a different branch first")
+                # Try to check out main or master branch
+                for base_branch in ["main", "master"]:
+                    check_branch_cmd = f"git branch --list {base_branch}"
+                    branch_result = subprocess.run(check_branch_cmd, shell=True, capture_output=True, text=True)
+                    if base_branch in branch_result.stdout:
+                        print(f"Switching to {base_branch} branch first")
+                        switch_cmd = f"git checkout {base_branch}"
+                        subprocess.run(switch_cmd, shell=True, check=True, capture_output=True)
+                        # Update current_branch for later restoration
+                        current_branch = base_branch
+                        break
+                else:
+                    # If we couldn't find main or master, create a temporary branch
+                    temp_branch = f"temp_branch_{int(time.time())}"
+                    print(f"Creating temporary branch {temp_branch}")
+                    # Create and checkout a new branch based on the current one
+                    create_temp_cmd = f"git checkout -b {temp_branch}"
+                    subprocess.run(create_temp_cmd, shell=True, check=True, capture_output=True)
+                    current_branch = temp_branch
             
             # Save current state
             cmd = "git stash -u"
@@ -421,20 +480,97 @@ def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
             
             # Pull latest content
             cmd = "git fetch origin"
-            subprocess.run(cmd, shell=True, check=True, capture_output=True)
+            fetch_result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if fetch_result.returncode != 0:
+                print(f"Warning: Failed to fetch from origin: {fetch_result.stderr}")
+                print("Attempting to continue with PR fetch...")
+            
+            # Delete the PR branch if it already exists locally before fetching
+            delete_branch_cmd = f"git branch -D pr_{pr_number}"
+            # We don't care if this fails - it's just to ensure a clean state
+            subprocess.run(delete_branch_cmd, shell=True, capture_output=True)
             
             # Get PR reference
             cmd = f"git fetch origin pull/{pr_number}/head:pr_{pr_number}"
-            subprocess.run(cmd, shell=True, check=True, capture_output=True)
+            try:
+                pr_fetch_result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+                if pr_fetch_result.returncode != 0:
+                    print(f"Error fetching PR #{pr_number}:")
+                    print(f"Command: {cmd}")
+                    print(f"Exit code: {pr_fetch_result.returncode}")
+                    print(f"Stderr: {pr_fetch_result.stderr}")
+                    print(f"Stdout: {pr_fetch_result.stdout}")
+                    
+                    # Check if auth error
+                    if "Authentication failed" in pr_fetch_result.stderr:
+                        print("This appears to be an authentication issue. Please check your credentials.")
+                        print("Try running 'git fetch' manually to verify authentication works.")
+                    # Check if network error
+                    elif "Could not resolve host" in pr_fetch_result.stderr:
+                        print("This appears to be a network connectivity issue.")
+                    # Check if ref doesn't exist
+                    elif "couldn't find remote ref" in pr_fetch_result.stderr:
+                        print(f"The PR #{pr_number} may not exist or you don't have access to it.")
+                    
+                    raise Exception(f"Git fetch failed with exit code: {pr_fetch_result.returncode}")
+            except Exception as e:
+                # Restore the original branch
+                if current_branch:
+                    restore_cmd = f"git checkout {current_branch}"
+                    subprocess.run(restore_cmd, shell=True, capture_output=True)
+                    # Pop the stash if we created one
+                    pop_cmd = "git stash pop"
+                    subprocess.run(pop_cmd, shell=True, capture_output=True)
+                print(f"Error: {e}")
+                sys.exit(1)
             
             # Switch to PR branch
             cmd = f"git checkout pr_{pr_number}"
             subprocess.run(cmd, shell=True, check=True, capture_output=True)
             
             print(f"Successfully pulled PR #{pr_number} content to {repo_path}")
-            return repo_path
+            
+            # Store the repo path for return
+            repo_data = {
+                "repo_path": str(repo_path)
+            }
+            
+            # Restore the original branch
+            print(f"Restoring original branch: {current_branch}")
+            restore_cmd = f"git checkout {current_branch}"
+            subprocess.run(restore_cmd, shell=True, capture_output=True)
+            
+            # Pop the stash if we created one
+            pop_cmd = "git stash pop"
+            subprocess.run(pop_cmd, shell=True, capture_output=True)
+            
+            # Delete the PR branch
+            print(f"Cleaning up: Deleting PR branch pr_{pr_number}")
+            delete_cmd = f"git branch -D pr_{pr_number}"
+            delete_result = subprocess.run(delete_cmd, shell=True, capture_output=True, text=True)
+            if delete_result.returncode != 0:
+                print(f"Warning: Failed to delete PR branch: {delete_result.stderr}")
+            else:
+                print(f"Successfully deleted PR branch pr_{pr_number}")
+            
+            return repo_data
         except Exception as e:
-            print(f"Error: Failed to pull PR content to existing repo: {e}")
+            # Attempt to restore the original branch even if there was an error
+            if 'current_branch' in locals() and current_branch:
+                restore_cmd = f"git checkout {current_branch}"
+                subprocess.run(restore_cmd, shell=True, capture_output=True)
+                # Pop the stash if we created one
+                pop_cmd = "git stash pop"
+                subprocess.run(pop_cmd, shell=True, capture_output=True)
+                
+                # Try to delete the PR branch even after an error
+                try:
+                    delete_cmd = f"git branch -D pr_{pr_number}"
+                    subprocess.run(delete_cmd, shell=True, capture_output=True)
+                except:
+                    pass  # Ignore errors when trying to clean up after another error
+            
+            print(f"Error: Failed to pull PR content to custom repo: {e}")
             sys.exit(1)
     
     # Assume repository already exists in the repos directory
@@ -448,6 +584,30 @@ def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
         # Get current branch
         cmd = "git branch --show-current"
         current_branch = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True).stdout.strip()
+        print(f"Current branch before PR operations: {current_branch}")
+        
+        # Check if we're already on the PR branch we want to create
+        if current_branch == f"pr_{pr_number}":
+            print(f"Already on PR branch pr_{pr_number}, switching to a different branch first")
+            # Try to check out main or master branch
+            for base_branch in ["main", "master"]:
+                check_branch_cmd = f"git branch --list {base_branch}"
+                branch_result = subprocess.run(check_branch_cmd, shell=True, capture_output=True, text=True)
+                if base_branch in branch_result.stdout:
+                    print(f"Switching to {base_branch} branch first")
+                    switch_cmd = f"git checkout {base_branch}"
+                    subprocess.run(switch_cmd, shell=True, check=True, capture_output=True)
+                    # Update current_branch for later restoration
+                    current_branch = base_branch
+                    break
+            else:
+                # If we couldn't find main or master, create a temporary branch
+                temp_branch = f"temp_branch_{int(time.time())}"
+                print(f"Creating temporary branch {temp_branch}")
+                # Create and checkout a new branch based on the current one
+                create_temp_cmd = f"git checkout -b {temp_branch}"
+                subprocess.run(create_temp_cmd, shell=True, check=True, capture_output=True)
+                current_branch = temp_branch
         
         # Save current state
         cmd = "git stash -u"
@@ -455,19 +615,96 @@ def fetch_repo_content(repo, pr_number, repo_path=None, config=None):
         
         # Pull latest content
         cmd = "git fetch origin"
-        subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        fetch_result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if fetch_result.returncode != 0:
+            print(f"Warning: Failed to fetch from origin: {fetch_result.stderr}")
+            print("Attempting to continue with PR fetch...")
+        
+        # Delete the PR branch if it already exists locally before fetching
+        delete_branch_cmd = f"git branch -D pr_{pr_number}"
+        # We don't care if this fails - it's just to ensure a clean state
+        subprocess.run(delete_branch_cmd, shell=True, capture_output=True)
         
         # Get PR reference
         cmd = f"git fetch origin pull/{pr_number}/head:pr_{pr_number}"
-        subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        try:
+            pr_fetch_result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+            if pr_fetch_result.returncode != 0:
+                print(f"Error fetching PR #{pr_number}:")
+                print(f"Command: {cmd}")
+                print(f"Exit code: {pr_fetch_result.returncode}")
+                print(f"Stderr: {pr_fetch_result.stderr}")
+                print(f"Stdout: {pr_fetch_result.stdout}")
+                
+                # Check if auth error
+                if "Authentication failed" in pr_fetch_result.stderr:
+                    print("This appears to be an authentication issue. Please check your credentials.")
+                    print("Try running 'git fetch' manually to verify authentication works.")
+                # Check if network error
+                elif "Could not resolve host" in pr_fetch_result.stderr:
+                    print("This appears to be a network connectivity issue.")
+                # Check if ref doesn't exist
+                elif "couldn't find remote ref" in pr_fetch_result.stderr:
+                    print(f"The PR #{pr_number} may not exist or you don't have access to it.")
+                
+                raise Exception(f"Git fetch failed with exit code: {pr_fetch_result.returncode}")
+        except Exception as e:
+            # Restore the original branch
+            if current_branch:
+                restore_cmd = f"git checkout {current_branch}"
+                subprocess.run(restore_cmd, shell=True, capture_output=True)
+                # Pop the stash if we created one
+                pop_cmd = "git stash pop"
+                subprocess.run(pop_cmd, shell=True, capture_output=True)
+            print(f"Error: {e}")
+            sys.exit(1)
         
         # Switch to PR branch
         cmd = f"git checkout pr_{pr_number}"
         subprocess.run(cmd, shell=True, check=True, capture_output=True)
         
         print(f"Successfully pulled PR #{pr_number} content to {default_repo_path}")
-        return default_repo_path
+        
+        # Store the repo path for return
+        repo_data = {
+            "repo_path": str(default_repo_path)
+        }
+        
+        # Restore the original branch
+        print(f"Restoring original branch: {current_branch}")
+        restore_cmd = f"git checkout {current_branch}"
+        subprocess.run(restore_cmd, shell=True, capture_output=True)
+        
+        # Pop the stash if we created one
+        pop_cmd = "git stash pop"
+        subprocess.run(pop_cmd, shell=True, capture_output=True)
+        
+        # Delete the PR branch
+        print(f"Cleaning up: Deleting PR branch pr_{pr_number}")
+        delete_cmd = f"git branch -D pr_{pr_number}"
+        delete_result = subprocess.run(delete_cmd, shell=True, capture_output=True, text=True)
+        if delete_result.returncode != 0:
+            print(f"Warning: Failed to delete PR branch: {delete_result.stderr}")
+        else:
+            print(f"Successfully deleted PR branch pr_{pr_number}")
+        
+        return repo_data
     except Exception as e:
+        # Attempt to restore the original branch even if there was an error
+        if 'current_branch' in locals() and current_branch:
+            restore_cmd = f"git checkout {current_branch}"
+            subprocess.run(restore_cmd, shell=True, capture_output=True)
+            # Pop the stash if we created one
+            pop_cmd = "git stash pop"
+            subprocess.run(pop_cmd, shell=True, capture_output=True)
+            
+            # Try to delete the PR branch even after an error
+            try:
+                delete_cmd = f"git branch -D pr_{pr_number}"
+                subprocess.run(delete_cmd, shell=True, capture_output=True)
+            except:
+                pass  # Ignore errors when trying to clean up after another error
+            
         print(f"Error: Failed to use existing repository at {default_repo_path}: {e}")
         sys.exit(1)
 

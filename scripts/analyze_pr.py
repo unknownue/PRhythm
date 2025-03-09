@@ -13,6 +13,9 @@ import requests
 import re
 from pathlib import Path
 from datetime import datetime
+import os
+import logging
+import json
 
 # Import common utilities
 from common import (
@@ -21,7 +24,7 @@ from common import (
     setup_logging,
     load_json,
     save_json,
-    ensure_directory
+    ensure_directory,
 )
 
 # Setup logger
@@ -776,7 +779,7 @@ def calculate_pr_complexity(pr_data):
         'frequency_penalty': frequency_penalty
     }
 
-def call_llm_api(prompt, config, provider=None):
+def call_llm_api(prompt, config, provider=None, dry_run=False):
     """
     Call LLM API to generate an analysis report
     
@@ -784,10 +787,35 @@ def call_llm_api(prompt, config, provider=None):
         prompt: Prepared prompt
         config: Configuration data
         provider: LLM provider to use (optional, defaults to config.llm.provider)
+        dry_run: If True, only save the prompt without making API calls
         
     Returns:
-        str: Generated analysis report
+        str: Generated analysis report or message indicating dry run
     """
+    # Save prompt to logs directory first
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Generate a timestamp and filename for the prompt log
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Extract PR number from prompt if available for better filename
+    import re
+    pr_number_match = re.search(r'PR #(\d+)', prompt)
+    pr_number = pr_number_match.group(1) if pr_number_match else "unknown"
+    
+    prompt_file = logs_dir / f"prompt_pr{pr_number}_{timestamp}.txt"
+    
+    # Save the prompt to file
+    with open(prompt_file, "w", encoding="utf-8") as f:
+        f.write(prompt)
+    
+    print(f"Prompt saved to: {prompt_file}")
+    
+    # If dry run, return early with a message
+    if dry_run:
+        return f"DRY RUN: Prompt saved to {prompt_file}. No API call was made."
+    
     # Get provider from argument or config
     if not provider:
         provider = config.get('llm', {}).get('provider', 'openai')
@@ -975,6 +1003,7 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     # Get current date for month-based directory
     current_date = datetime.now()
     month_dir = current_date.strftime('%Y-%m')  # Format: YYYY-MM
+    date_str = current_date.strftime('%Y%m%d')
     
     # Create repository-specific directory
     repo_output_dir = output_dir / repo_name / month_dir
@@ -1001,7 +1030,25 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
     # Debug output to verify the language code
     print(f"Using language code '{language_code}' for filename")
     
-    filename = f"pr_{pr_number}_{language_code}_{current_date.strftime('%Y%m%d_%H%M%S')}.md"
+    # Create a base filename
+    base_filename = f"pr_{pr_number}_{language_code}_{date_str}"
+    
+    # Check if files with the base name already exist
+    existing_files = list(repo_output_dir.glob(f"{base_filename}*.md"))
+    
+    if not existing_files:
+        # First file - use base filename
+        filename = f"{base_filename}.md"
+    else:
+        # Subsequent files - add number starting from 1
+        next_number = 1
+        filename = f"{base_filename}_{next_number}.md"
+        
+        # Find a unique filename
+        while repo_output_dir / filename in existing_files:
+            next_number += 1
+            filename = f"{base_filename}_{next_number}.md"
+    
     file_path = repo_output_dir / filename
     
     # Convert to absolute path for better logging
@@ -1020,10 +1067,84 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Analyze PR and generate a report')
-    parser.add_argument('--json', required=True, help='Path to the PR JSON file')
+    parser.add_argument('--json', required=False, help='Path to the PR JSON file')
+    parser.add_argument('--pr', type=str, help='PR number to analyze')
+    parser.add_argument('--repo', type=str, help='Repository name (owner/repo format)')
     parser.add_argument('--language', default='en', help='Output language code (default: en)')
     parser.add_argument('--config', type=str, default="config.json", help='Path to the configuration file')
-    return parser.parse_args()
+    parser.add_argument('--dry-run', action='store_true', help='Only save prompt without making actual API calls')
+    args = parser.parse_args()
+    
+    # Check that either --json or --pr is provided
+    if not args.json and not args.pr:
+        parser.error("Either --json or --pr must be provided")
+    
+    return args
+
+def find_pr_json_file(pr_number, repo_name=None, project_root=None, config=None):
+    """
+    Find the most recent JSON file for a PR
+    
+    Args:
+        pr_number: PR number
+        repo_name: Repository name (optional)
+        project_root: Project root directory (optional)
+        config: Configuration dictionary (optional)
+        
+    Returns:
+        Path: Path to the PR JSON file
+    """
+    if project_root is None:
+        project_root = get_project_root()
+    
+    if config is None:
+        config_path = project_root / "config.json"
+        config = read_config(config_path)
+    
+    # Get output directory from config or use default
+    output_base_dir = config.get('paths', {}).get('output_dir', './output')
+    
+    # Convert relative path to absolute if needed
+    if output_base_dir.startswith('./') or output_base_dir.startswith('../'):
+        output_dir = project_root / output_base_dir.lstrip('./')
+    else:
+        output_dir = Path(output_base_dir)
+    
+    # List of files that match
+    matching_files = []
+    
+    # If repository name is specified, only search in that directory
+    if repo_name:
+        # Extract repo name from owner/repo format if needed
+        if '/' in repo_name:
+            repo_name = repo_name.split('/')[-1]
+        
+        repo_dir = output_dir / repo_name
+        if repo_dir.exists():
+            # Check all month directories
+            for month_dir in [d for d in repo_dir.iterdir() if d.is_dir()]:
+                # Get files matching the PR pattern
+                pr_files = list(month_dir.glob(f"pr_{pr_number}_*.json"))
+                matching_files.extend(pr_files)
+    else:
+        # Search all repository directories
+        repo_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
+        for repo_dir in repo_dirs:
+            # Check all month directories
+            for month_dir in [d for d in repo_dir.iterdir() if d.is_dir()]:
+                # Get files matching the PR pattern
+                pr_files = list(month_dir.glob(f"pr_{pr_number}_*.json"))
+                matching_files.extend(pr_files)
+    
+    if not matching_files:
+        repo_str = f" in repository '{repo_name}'" if repo_name else ""
+        raise FileNotFoundError(f"No JSON files found for PR #{pr_number}{repo_str}")
+    
+    # Sort by modification time (newest first)
+    matching_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    
+    # Return the most recent file
+    return matching_files[0]
 
 def main():
     """Main function"""
@@ -1040,8 +1161,17 @@ def main():
         # Read configuration
         config = read_config(config_path)
         
-        # Read PR data
-        json_file_path = Path(args.json)
+        # Determine JSON file path
+        if args.json:
+            json_file_path = Path(args.json)
+        elif args.pr:
+            try:
+                json_file_path = find_pr_json_file(args.pr, args.repo, project_root, config)
+                logger.info(f"Found JSON file for PR #{args.pr}: {json_file_path}")
+            except FileNotFoundError as e:
+                logger.error(str(e))
+                sys.exit(1)
+        
         logger.info(f"Reading PR data from {json_file_path}")
         pr_data = read_pr_data(json_file_path)
         
@@ -1058,9 +1188,19 @@ def main():
         prompt = prepare_prompt(pr_data, prompt_template, output_language)
         
         # Call LLM API
-        logger.info("Calling LLM API to generate analysis")
+        if args.dry_run:
+            logger.info("Dry run mode: Saving prompt without making API call")
+        else:
+            logger.info("Calling LLM API to generate analysis")
+        
         provider = get_provider_from_config(config)
-        response = call_llm_api(prompt, config, provider)
+        response = call_llm_api(prompt, config, provider, dry_run=args.dry_run)
+        
+        # If dry run, just print the response and exit
+        if args.dry_run:
+            logger.info(response)
+            print(response)
+            return
         
         # Save analysis report
         logger.info("Saving analysis report")

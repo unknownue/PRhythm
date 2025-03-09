@@ -3,3 +3,4 @@ repos/
 output/
 .vscode/
 analysis/
+logs

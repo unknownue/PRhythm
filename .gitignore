@@ -46,5 +46,6 @@ analysis/
 config.json
 # Keep config.example.json as a template for users
 
+logs/
 
 test.sh
