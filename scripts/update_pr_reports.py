@@ -26,6 +26,7 @@ import importlib.util
 from pathlib import Path
 from datetime import datetime
 import time
+import os
 
 # Import common utilities
 from common import (
@@ -357,7 +358,6 @@ def update_pr_reports():
                     analyze_pr_script, 
                     "--json", pr_json, 
                     "--language", output_language,
-                    "--provider", default_provider,
                     "--config", str(config_path)
                 )
                 
