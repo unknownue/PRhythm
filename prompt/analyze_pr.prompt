@@ -1,4 +1,4 @@
-You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a narrative-style technical report.
+You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a narrative-style technical report. Write in a clear, practical style that software engineers use in professional settings - direct, precise, and focused on technical details without literary flourishes.
 
 # INSTRUCTIONS FOR YOU (NOT PART OF THE OUTPUT):
 Your task is to analyze this PR thoroughly and present your findings as a cohesive narrative rather than disconnected sections. Follow these guidelines carefully:
@@ -19,8 +19,14 @@ Your task is to analyze this PR thoroughly and present your findings as a cohesi
 8. **Original Title**: Do not translate the PR title - keep it in its original English form.
 9. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
 10. **Language Instruction**: {multilingual_instruction}
+11. **Engineer's Tone**: 
+   - Use straightforward, practical language typical of software engineers
+   - Avoid flowery or literary expressions ("ripples", "new era", "undercurrents", etc.)
+   - Focus on technical precision and clarity rather than dramatic narrative
+   - Use direct, matter-of-fact descriptions of technical concepts and implementations
+   - Maintain a professional, analytical tone throughout the report
 
-Your narrative should feel like an experienced developer explaining the PR to a colleague - technically precise but conversational and insightful.
+Your narrative should feel like an experienced developer explaining the PR to a colleague - technically precise, practical, and focused on the engineering aspects without unnecessary embellishment.
 
 # CODE BACKGROUND (FOR YOUR ANALYSIS, NOT PART OF THE OUTPUT):
 Below are the contents of the files modified in this PR. Use this information to understand the changes in detail:
@@ -52,27 +58,39 @@ Note: If the target language is English, simply include the original description
 
 ## The Story of This Pull Request
 
-Tell the complete story of this PR as a cohesive narrative. Focus on creating a logical flow that best explains the changes, rather than rigidly following all the suggested elements below. Adjust the depth and breadth of your analysis based on the PR's complexity.
+Tell the complete story of this PR as a cohesive narrative, using language typical of software engineers. Focus on creating a logical flow that best explains the changes, rather than rigidly following all the suggested elements below. Adjust the depth and breadth of your analysis based on the PR's complexity.
 
 The following elements can be incorporated as appropriate:
 
 1. **The Problem and Context**: What problem was the developer facing? Why was it important to solve? What were the technical constraints or limitations?
 
-2. **The Developer's Journey**: How did the developer approach the problem? What alternatives were considered? What technical decisions shaped their approach?
+2. **The Solution Approach**: What technical approach did the developer take? What alternatives were considered? What engineering decisions shaped the implementation?
 
-3. **The Implementation**: Describe the solution in detail, using specific code examples from the PR. Highlight clever aspects of the implementation. Explain how the changes fit into the broader architecture.
+3. **The Implementation**: Describe the solution in detail, using specific code examples from the PR. Highlight effective aspects of the implementation. Explain how the changes fit into the existing architecture.
 
-4. **Technical Insights**: Explain key technical concepts, patterns, or techniques used. Discuss performance implications, architectural impacts, or potential future extensions.
+4. **Technical Insights**: Explain key technical concepts, patterns, or techniques used. Discuss performance considerations, architectural implications, or potential future improvements.
 
-5. **The Impact**: What improvements do these changes bring? How do they affect the codebase? What lessons can be learned?
+5. **The Impact**: What concrete improvements do these changes bring? How do they affect the codebase? What technical lessons can be learned?
 
 Include throughout your narrative:
 - Specific code snippets to illustrate key points
-- Explanations of why certain approaches were taken
-- Connections between different parts of the implementation
-- Technical trade-offs or considerations
+- Technical explanations of why certain approaches were taken
+- Logical connections between different parts of the implementation
+- Engineering trade-offs or considerations
 
-Remember that the goal is to create a coherent story that helps the reader understand the PR, not to check off every suggested element. Simple PRs may require less detail, while complex ones might need more in-depth analysis of certain aspects.
+IMPORTANT: Use language typical of software engineers. Avoid literary or flowery expressions.
+
+Examples to avoid:
+- ❌ "This PR ushers in a new era of performance optimization"
+- ❌ "The changes ripple through the codebase like waves"
+- ❌ "Beneath the surface, undercurrents of technical debt were addressed"
+
+Better alternatives:
+- ✅ "This PR significantly improves performance by optimizing the database queries"
+- ✅ "The changes affect multiple components in the codebase"
+- ✅ "The PR also addresses several instances of technical debt in the process"
+
+Remember that the goal is to create a clear technical explanation that helps engineers understand the PR, not to create dramatic narrative.
 
 ## Visual Representation
 
