@@ -150,10 +150,28 @@ def get_repo_status(status_data, repo):
     if repo not in status_data["repositories"]:
         status_data["repositories"][repo] = {
             "latest_processed_pr": 0,
-            "last_updated": None
+            "latest_merged_at": None,
+            "last_updated": None,
+            "latest_pr_title": None,
+            "latest_pr_url": None
         }
     
-    return status_data["repositories"][repo]
+    # Ensure all required fields exist for existing entries
+    repo_status = status_data["repositories"][repo]
+    required_fields = {
+        "latest_processed_pr": 0,
+        "latest_merged_at": None,
+        "last_updated": None,
+        "latest_pr_title": None,
+        "latest_pr_url": None
+    }
+    
+    # Add any missing fields with default values
+    for field, default_value in required_fields.items():
+        if field not in repo_status:
+            repo_status[field] = default_value
+    
+    return repo_status
 
 def update_repo_status(status_data, repo, pr_info, operation_name=None, success=True):
     """
@@ -174,49 +192,87 @@ def update_repo_status(status_data, repo, pr_info, operation_name=None, success=
     
     repo_status = get_repo_status(status_data, repo)
     current_pr_number = pr_info["number"]
+    current_merged_at = pr_info.get("merged_at")
     
-    # Update only if the new PR number is higher
-    if current_pr_number > repo_status["latest_processed_pr"]:
-        repo_status["latest_processed_pr"] = current_pr_number
-        repo_status["last_updated"] = datetime.now().isoformat()
-        repo_status["latest_pr_title"] = pr_info["title"]
-        repo_status["latest_pr_url"] = pr_info["html_url"]
-        
-        # Add batch operation record if operation name is provided
-        if operation_name:
-            batch_operation = {
-                "timestamp": datetime.now().isoformat(),
-                "repository": repo,
-                "pr_number": current_pr_number,
-                "operation": operation_name,
-                "success": success
-            }
+    # Use PR number for backward compatibility if merge time is not available
+    if not current_merged_at:
+        if current_pr_number > repo_status["latest_processed_pr"]:
+            repo_status["latest_processed_pr"] = current_pr_number
+            repo_status["last_updated"] = datetime.now().isoformat()
+            repo_status["latest_pr_title"] = pr_info["title"]
+            repo_status["latest_pr_url"] = pr_info["html_url"]
             
-            if "batch_operations" not in status_data:
-                status_data["batch_operations"] = []
+            # Add batch operation record if operation name is provided
+            if operation_name:
+                batch_operation = {
+                    "timestamp": datetime.now().isoformat(),
+                    "repository": repo,
+                    "pr_number": current_pr_number,
+                    "operation": operation_name,
+                    "success": success
+                }
+                
+                if "batch_operations" not in status_data:
+                    status_data["batch_operations"] = []
+                
+                status_data["batch_operations"].append(batch_operation)
+                
+                # Keep only the last 100 batch operations to prevent the file from growing too large
+                if len(status_data["batch_operations"]) > 100:
+                    status_data["batch_operations"] = status_data["batch_operations"][-100:]
             
-            status_data["batch_operations"].append(batch_operation)
+            return True
+    else:
+        # Use merge time as the criteria for determining unsynced PRs
+        latest_merged_at = repo_status["latest_merged_at"]
+        if not latest_merged_at or current_merged_at > latest_merged_at:
+            repo_status["latest_processed_pr"] = current_pr_number
+            repo_status["latest_merged_at"] = current_merged_at
+            repo_status["last_updated"] = datetime.now().isoformat()
+            repo_status["latest_pr_title"] = pr_info["title"]
+            repo_status["latest_pr_url"] = pr_info["html_url"]
             
-            # Keep only the last 100 batch operations to prevent the file from growing too large
-            if len(status_data["batch_operations"]) > 100:
-                status_data["batch_operations"] = status_data["batch_operations"][-100:]
-        
-        return True
+            # Add batch operation record if operation name is provided
+            if operation_name:
+                batch_operation = {
+                    "timestamp": datetime.now().isoformat(),
+                    "repository": repo,
+                    "pr_number": current_pr_number,
+                    "operation": operation_name,
+                    "success": success
+                }
+                
+                if "batch_operations" not in status_data:
+                    status_data["batch_operations"] = []
+                
+                status_data["batch_operations"].append(batch_operation)
+                
+                # Keep only the last 100 batch operations to prevent the file from growing too large
+                if len(status_data["batch_operations"]) > 100:
+                    status_data["batch_operations"] = status_data["batch_operations"][-100:]
+            
+            return True
     
     return False
 
-def find_unsynced_prs(merged_prs, latest_processed_pr):
+def find_unsynced_prs(merged_prs, latest_processed_pr, latest_merged_at=None):
     """
     Find PRs that have been merged but not yet processed
     
     Args:
         merged_prs: List of merged PRs
-        latest_processed_pr: Latest processed PR number
+        latest_processed_pr: Latest processed PR number (for backward compatibility)
+        latest_merged_at: Latest processed PR merge time
         
     Returns:
         list: List of unsynced PR information
     """
-    return [pr for pr in merged_prs if pr["number"] > latest_processed_pr]
+    if not latest_merged_at:
+        # Use PR number for backward compatibility if merge time is not available
+        return [pr for pr in merged_prs if pr["number"] > latest_processed_pr]
+    
+    # Use merge time as the criteria for determining unsynced PRs
+    return [pr for pr in merged_prs if pr["merged_at"] > latest_merged_at]
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -264,13 +320,14 @@ def main():
             # Get repository status
             repo_status = get_repo_status(status_data, repo)
             latest_processed_pr = repo_status["latest_processed_pr"]
+            latest_merged_at = repo_status.get("latest_merged_at")  # Use get() to safely access the field
             
             # Get merged PRs
             logger.info(f"Fetching merged PRs for {repo}...")
             merged_prs = get_merged_prs(repo, args.token, args.limit)
             
             # Find unsynced PRs
-            unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr)
+            unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr, latest_merged_at)
             
             if unsynced_prs:
                 logger.info(f"Found {len(unsynced_prs)} unsynced PR(s) for {repo}")

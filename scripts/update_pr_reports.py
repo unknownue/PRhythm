@@ -123,7 +123,7 @@ def get_provider_from_config(config):
     logger.info(f"Using LLM provider from config.json: {provider}")
     return provider
 
-def run_script(script_path, *args, timeout=300):
+def run_script(script_path, *args, timeout=600):
     """
     Run a Python script with arguments and timeout
     
