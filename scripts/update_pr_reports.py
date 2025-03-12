@@ -27,6 +27,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 import os
+import csv
 
 # Import common utilities
 from common import (
@@ -227,6 +228,43 @@ def find_pr_json_file(repo_name, pr_number, config):
     
     return None
 
+def record_failed_request(repo, pr_number, language, error_message):
+    """
+    Record failed LLM request to a local file
+    
+    Args:
+        repo: Repository name
+        pr_number: PR number
+        language: Output language
+        error_message: Error message
+    """
+    # Use logs directory in the project root to store failure records
+    project_root = get_project_root()
+    logs_dir = project_root / "logs"
+    ensure_directory(logs_dir)
+    
+    # Path to the failed requests log file
+    failed_requests_file = logs_dir / "failed_llm_requests.csv"
+    
+    # Prepare record data
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    record = [timestamp, repo, pr_number, language, error_message]
+    
+    # Check if file exists, if not create and add header
+    file_exists = os.path.isfile(failed_requests_file)
+    
+    try:
+        with open(failed_requests_file, mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # If file doesn't exist, write header first
+            if not file_exists:
+                writer.writerow(['Timestamp', 'Repository', 'PR Number', 'Language', 'Error'])
+            # Write the failure record
+            writer.writerow(record)
+        logger.info(f"Recorded failed LLM request for PR #{pr_number} in {language} to {failed_requests_file}")
+    except Exception as e:
+        logger.error(f"Failed to record failed LLM request: {str(e)}")
+
 def update_pr_reports():
     """Process PR reports update workflow"""
     # Get project root directory
@@ -354,15 +392,47 @@ def update_pr_reports():
                     logger.warning("Using fallback analysis directory: %s", analysis_dir)
                 
                 # Run analyze_pr.py with explicit config path
-                returncode, stdout, stderr = run_script(
-                    analyze_pr_script, 
-                    "--json", pr_json, 
-                    "--language", output_language,
-                    "--config", str(config_path)
-                )
+                max_retries = 2  # Maximum retry attempts
+                retry_count = 0
+                execute_success = False
+                
+                while retry_count <= max_retries and not execute_success:
+                    if retry_count > 0:
+                        logger.info("Retry attempt %d for PR #%s in %s language...", 
+                                    retry_count, pr_number, output_language)
+                    
+                    returncode, stdout, stderr = run_script(
+                        analyze_pr_script, 
+                        "--json", pr_json, 
+                        "--language", output_language,
+                        "--config", str(config_path)
+                    )
+                    
+                    # Check if execution was successful
+                    if returncode == 0:
+                        execute_success = True
+                    # Check if it's a timeout error
+                    elif "timed out" in stderr.lower():
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            logger.warning("LLM request timed out. Retrying (%d/%d)...", 
+                                           retry_count, max_retries)
+                            # Add a short delay before retrying
+                            time.sleep(3)
+                        else:
+                            logger.error("LLM request timed out after %d retries. Giving up.", max_retries)
+                            # Record the failed request information
+                            record_failed_request(repo, pr_number, output_language, f"Timeout after {max_retries} retries")
+                            break
+                    else:
+                        # Other errors, no retry
+                        logger.error("Failed to analyze PR with error: %s", stderr)
+                        # Record the failed request information
+                        record_failed_request(repo, pr_number, output_language, stderr)
+                        break
                 
                 # Check if analysis was successful
-                if returncode == 0:
+                if execute_success:
                     # Extract the saved report path from stdout
                     report_path_match = re.search(r"Saved analysis report: (.+\.md)", stdout)
                     
