@@ -664,6 +664,17 @@ def main():
                 )
                 # Update PR data with repository content
                 pr_data.update(repo_data)
+                
+                # add logic to fetch file contents
+                if "repo_path" in pr_data and pr_data["repo_path"]:
+                    logger.info(f"Fetching modified file contents from local repository")
+                    try:
+                        modified_file_contents = fetch_modified_file_contents(pr_data, pr_data["repo_path"])
+                        pr_data["modified_file_contents"] = modified_file_contents
+                        logger.info(f"Successfully fetched content for {len(modified_file_contents)} modified files")
+                    except Exception as e:
+                        logger.warning(f"Unable to fetch modified file contents: {e}")
+                        logger.warning("Continuing without file contents")
             except Exception as e:
                 logger.warning(f"Unable to fetch repository content: {e}")
                 logger.warning("Continuing without repository context")
