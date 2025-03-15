@@ -351,12 +351,12 @@ def main():
         print_color(YELLOW, "Running immediate update...")
         if args.schedule:
             print_color(YELLOW, f"Starting scheduled updates with interval of {args.schedule} seconds...")
-            run_command(f"docker exec -it prhythm python /app/scripts/update_pr_reports.py --schedule {args.schedule}", shell=True)
+            run_command(f"docker exec -it prhythm python /app/pipeline/update_pr_reports.py --schedule {args.schedule}", shell=True)
         else:
-            run_command("docker exec -it prhythm python /app/scripts/update_pr_reports.py", shell=True)
+            run_command("docker exec -it prhythm python /app/pipeline/update_pr_reports.py", shell=True)
     elif args.schedule:
         print_color(YELLOW, f"Starting scheduled updates with interval of {args.schedule} seconds...")
-        run_command(f"docker exec -d prhythm bash -c \"nohup python /app/scripts/update_pr_reports.py --schedule {args.schedule} > /app/update_log.txt 2>&1 &\"", shell=True)
+        run_command(f"docker exec -d prhythm bash -c \"nohup python /app/pipeline/update_pr_reports.py --schedule {args.schedule} > /app/update_log.txt 2>&1 &\"", shell=True)
         print_color(YELLOW, "Updates are running in background. Check logs with:")
         print("  docker exec prhythm cat /app/update_log.txt")
     
@@ -377,8 +377,8 @@ def main():
     if args.schedule:
         print("    docker exec prhythm cat /app/update_log.txt  # View scheduled update logs")
     else:
-        print("    docker exec -it prhythm python /app/scripts/update_pr_reports.py")
-        print("    docker exec -it prhythm python /app/scripts/update_pr_reports.py --schedule 3600  # Run hourly")
+        print("    docker exec -it prhythm python /app/pipeline/update_pr_reports.py")
+        print("    docker exec -it prhythm python /app/pipeline/update_pr_reports.py --schedule 3600  # Run hourly")
     print_color(GREEN, "  Stop service:")
     print("    cd docker && docker-compose down")
     print_color(GREEN, "  View generated reports:")

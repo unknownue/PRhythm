@@ -156,12 +156,12 @@ After starting the service, you can use the following commands:
 
 - Run manual update:
   ```bash
-  docker exec -it prhythm python /app/scripts/update_pr_reports.py
+  docker exec -it prhythm python /app/pipeline/update_pr_reports.py
   ```
 
 - Run scheduled updates (every hour):
   ```bash
-  docker exec -it prhythm python /app/scripts/update_pr_reports.py --schedule 3600
+  docker exec -it prhythm python /app/pipeline/update_pr_reports.py --schedule 3600
   ```
 
 - Stop service:

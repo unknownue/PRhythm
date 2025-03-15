@@ -23,4 +23,4 @@ services:
     # Use entrypoint script to start the service
     command: /app/docker/entrypoint.sh
     # Uncomment below to use custom command instead
-    # command: python scripts/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn 
+    # command: python pipeline/analyze_pr.py --json output/repo/pr_123_20240228_123456.json --language zh-cn 

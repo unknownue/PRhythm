@@ -47,8 +47,8 @@ Examples:
     args = parser.parse_args()
     
     # Commands to execute
-    fetch_cmd = f'docker exec -it prhythm python scripts/fetch_pr_info.py --repo "{args.repo}" --pr "{args.pr}"'
-    analyze_cmd = f'docker exec -it prhythm python scripts/analyze_pr.py --repo "{args.repo}" --pr "{args.pr}" --language "{args.language}"'
+    fetch_cmd = f'docker exec -it prhythm python pipeline/fetch_pr_info.py --repo "{args.repo}" --pr "{args.pr}"'
+    analyze_cmd = f'docker exec -it prhythm python pipeline/analyze_pr.py --repo "{args.repo}" --pr "{args.pr}" --language "{args.language}"'
     
     # Add dry-run flag if specified
     if args.dry_run:

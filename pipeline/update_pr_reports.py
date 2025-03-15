@@ -274,7 +274,7 @@ def update_pr_reports():
     
     # 1. Check and update repositories
     logger.info("1. Checking and updating repositories...")
-    check_pull_repo_script = project_root / "scripts" / "check_pull_repo.py"
+    check_pull_repo_script = project_root / "pipeline" / "check_pull_repo.py"
     returncode, stdout, stderr = run_script(check_pull_repo_script)
     if returncode != 0:
         logger.error("Failed to check and update repositories: %s", stderr)
@@ -306,7 +306,7 @@ def update_pr_reports():
         
         # 3. Get unsynchronized PRs
         logger.info("3. Getting unsynchronized PRs...")
-        track_merged_prs_script = project_root / "scripts" / "track_merged_prs.py"
+        track_merged_prs_script = project_root / "pipeline" / "track_merged_prs.py"
         returncode, stdout, stderr = run_script(track_merged_prs_script, "--repo", repo)
         
         if returncode != 0:
@@ -331,7 +331,7 @@ def update_pr_reports():
             
             # 5. Get PR information
             logger.info("5. Getting PR detailed information...")
-            fetch_pr_info_script = project_root / "scripts" / "fetch_pr_info.py"
+            fetch_pr_info_script = project_root / "pipeline" / "fetch_pr_info.py"
             returncode, stdout, stderr = run_script(fetch_pr_info_script, "--repo", repo, "--pr", pr_number)
             
             if returncode != 0:
@@ -353,7 +353,7 @@ def update_pr_reports():
             for output_language in output_languages:
                 logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
                            pr_number, output_language, default_provider)
-                analyze_pr_script = project_root / "scripts" / "analyze_pr.py"
+                analyze_pr_script = project_root / "pipeline" / "analyze_pr.py"
                 
                 # Get analysis directory from config
                 analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')

@@ -5,7 +5,7 @@
 set -e
 
 # Initial setup
-python scripts/check_pull_repo.py --skip-clone
+python pipeline/check_pull_repo.py --skip-clone
 
 # Use default port 9090 if not specified
 export VIEWER_PORT=${VIEWER_PORT:-9090}
