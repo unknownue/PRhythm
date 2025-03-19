@@ -128,7 +128,8 @@ def run_command(cmd, timeout=60, check=True, capture_output=True):
             check=check, 
             capture_output=capture_output, 
             text=True,
-            timeout=timeout
+            timeout=timeout,
+            encoding='utf-8'
         )
     except subprocess.TimeoutExpired:
         raise TimeoutError(f"Command timed out after {timeout} seconds: {cmd}")

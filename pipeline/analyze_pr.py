@@ -5,6 +5,12 @@
 Analyze PR information using LLM API and generate a markdown report.
 This script takes a PR JSON file path and output language as input,
 then sends a request to the configured LLM API to generate an analysis report.
+
+Features:
+- Generate PR analysis report in different languages
+- Save the PR diff as a separate patch file (using --save-diff flag)
+- Analyze codebase architecture and impact of changes
+- Extract learning points from the PR
 """
 
 import sys
@@ -85,7 +91,7 @@ def read_prompt_template(prompt_path):
         str: Prompt template
     """
     try:
-        with open(prompt_path, 'r') as file:
+        with open(prompt_path, 'r', encoding='utf-8') as file:
             prompt_template = file.read()
             return prompt_template
     except Exception as e:
@@ -1067,6 +1073,43 @@ def save_analysis_report(report, pr_data, output_dir, output_language):
         logger.error(f"Error saving analysis report: {e}")
         raise
 
+def save_diff_patch(pr_data, output_dir, filename_prefix):
+    """
+    Save PR diff as a patch file
+    
+    Args:
+        pr_data: PR data containing diff information
+        output_dir: Output directory
+        filename_prefix: Prefix for the patch file name
+        
+    Returns:
+        Path: Path to the saved patch file or None if no diff is available
+    """
+    # Get diff from PR data
+    diff = pr_data.get('diff', '')
+    if not diff:
+        logger.warning("No diff available in PR data, cannot create patch file")
+        return None
+    
+    # Create patch file name with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    patch_filename = f"{filename_prefix}_diff_{timestamp}.patch"
+    patch_file_path = output_dir / patch_filename
+    
+    # Ensure directory exists
+    ensure_directory(output_dir)
+    
+    try:
+        # Write diff to patch file with explicit UTF-8 encoding
+        with open(patch_file_path, 'w', encoding='utf-8') as file:
+            file.write(diff)
+        
+        logger.info(f"Saved diff patch file: {patch_file_path}")
+        return patch_file_path
+    except Exception as e:
+        logger.error(f"Error saving diff patch file: {e}")
+        return None
+
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Analyze PR and generate a report')
@@ -1076,6 +1119,7 @@ def parse_arguments():
     parser.add_argument('--language', default='en', help='Output language code (default: en)')
     parser.add_argument('--config', type=str, default="config.json", help='Path to the configuration file')
     parser.add_argument('--dry-run', action='store_true', help='Only save prompt without making actual API calls')
+    parser.add_argument('--save-diff', action='store_true', help='Save PR diff as a separate patch file')
     args = parser.parse_args()
     
     # Check that either --json or --pr is provided
@@ -1197,6 +1241,25 @@ def main():
         # Prepare prompt
         logger.info("Preparing prompt for LLM API")
         prompt = prepare_prompt(pr_data, prompt_template, output_language)
+        
+        # Save diff as patch file if requested
+        if args.save_diff:
+            logger.info("Saving PR diff as patch file")
+            # Extract repository name and PR number for filename prefix
+            repo = pr_data.get('repository', 'unknown')
+            repo_name = repo.split('/')[-1]
+            pr_number = pr_data.get('number', 'unknown')
+            filename_prefix = f"{repo_name}_pr_{pr_number}"
+            
+            # Use the same directory structure as for analysis reports
+            current_date = datetime.now()
+            month_dir = current_date.strftime('%Y-%m')  # Format: YYYY-MM
+            diff_output_dir = analysis_dir / repo_name / month_dir
+            
+            # Save diff patch
+            diff_file_path = save_diff_patch(pr_data, diff_output_dir, filename_prefix)
+            if diff_file_path:
+                print(f"Diff patch file saved to: {diff_file_path}")
         
         # Call LLM API
         if args.dry_run:

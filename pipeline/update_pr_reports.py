@@ -8,10 +8,16 @@ This script automatically performs the following steps:
 1. Check and update repositories
 2. Get unsynchronized PRs
 3. Get PR detailed information
-4. Analyze PRs and generate reports
+4. Analyze PRs and generate reports (with code diff saved as patch files)
 5. Update processing status
 
 This is a Python equivalent of the update_pr_reports.sh bash script.
+
+Features:
+- Automatically fetches and analyzes new PRs
+- Generates analysis reports in configured languages
+- Saves PR code diffs as separate patch files for easier review
+- Supports scheduled execution for continuous monitoring
 
 Usage:
     python update_pr_reports.py                  # Run once
@@ -144,7 +150,8 @@ def run_script(script_path, *args, timeout=600):
             cmd, 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            encoding='utf-8'  # Explicitly use UTF-8 encoding
         )
         stdout, stderr = process.communicate(timeout=timeout)
         return process.returncode, stdout, stderr
@@ -405,7 +412,8 @@ def update_pr_reports():
                         analyze_pr_script, 
                         "--json", pr_json, 
                         "--language", output_language,
-                        "--config", str(config_path)
+                        "--config", str(config_path),
+                        "--save-diff"
                     )
                     
                     # Check if execution was successful

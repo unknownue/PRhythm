@@ -48,7 +48,7 @@ Examples:
     
     # Commands to execute
     fetch_cmd = f'docker exec -it prhythm python pipeline/fetch_pr_info.py --repo "{args.repo}" --pr "{args.pr}"'
-    analyze_cmd = f'docker exec -it prhythm python pipeline/analyze_pr.py --repo "{args.repo}" --pr "{args.pr}" --language "{args.language}"'
+    analyze_cmd = f'docker exec -it prhythm python pipeline/analyze_pr.py --repo "{args.repo}" --pr "{args.pr}" --language "{args.language} --save-diff"'
     
     # Add dry-run flag if specified
     if args.dry_run:
