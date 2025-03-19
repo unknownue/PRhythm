@@ -1093,7 +1093,7 @@ def save_diff_patch(pr_data, output_dir, filename_prefix):
     
     # Create patch file name with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    patch_filename = f"{filename_prefix}_diff_{timestamp}.patch"
+    patch_filename = f"{filename_prefix}.patch"
     patch_file_path = output_dir / patch_filename
     
     # Ensure directory exists
@@ -1249,7 +1249,7 @@ def main():
             repo = pr_data.get('repository', 'unknown')
             repo_name = repo.split('/')[-1]
             pr_number = pr_data.get('number', 'unknown')
-            filename_prefix = f"{repo_name}_pr_{pr_number}"
+            filename_prefix = f"pr_{pr_number}"
             
             # Use the same directory structure as for analysis reports
             current_date = datetime.now()
