@@ -42,6 +42,7 @@ Below are the contents of the files modified in this PR. Use this information to
 - **PR Link**: {pr_data['url']}
 - **Author**: {pr_data['author']['login']}
 - **Status**: {pr_data['state']}
+- **Labels**: {pr_labels}
 - **Created**: {pr_data['createdAt']}
 - **Merged**: {pr_data['mergedAt'] if pr_data['mergedAt'] else "Not merged"}
 - **Merged By**: {pr_data['mergedBy']['login'] if pr_data['mergedBy'] else "N/A"}

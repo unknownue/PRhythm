@@ -80,7 +80,7 @@ def fetch_pr_info(repo, pr_number):
     """
     try:
         # Fetch basic PR info - removed commits and comments from the JSON fields
-        cmd = f"gh pr view {pr_number} --repo {repo} --json number,title,url,state,author,createdAt,mergedAt,mergedBy,body,files,reviews"
+        cmd = f"gh pr view {pr_number} --repo {repo} --json number,title,url,state,author,createdAt,mergedAt,mergedBy,body,files,reviews,labels"
         result = run_command(cmd)
         pr_data = json.loads(result.stdout)
         

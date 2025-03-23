@@ -548,6 +548,36 @@ def format_modified_file_contents(pr_data):
     
     return "\n".join(formatted_sections)
 
+def format_pr_labels(pr_data):
+    """
+    Format PR labels for inclusion in the prompt
+    
+    Args:
+        pr_data: PR data containing labels information
+        
+    Returns:
+        str: Formatted labels as a comma-separated string
+    """
+    # Extract labels from PR data
+    labels = pr_data.get('labels', [])
+    
+    if not labels:
+        return "None"
+    
+    # Format labels - extract name from each label object
+    label_names = []
+    for label in labels:
+        if isinstance(label, dict) and 'name' in label:
+            label_names.append(f"`{label['name']}`")
+        elif isinstance(label, str):
+            label_names.append(f"`{label}`")
+    
+    # Join labels with commas
+    if label_names:
+        return ", ".join(label_names)
+    else:
+        return "None"
+
 def prepare_prompt(pr_data, prompt_template, output_language):
     """
     Prepare the prompt for LLM API
@@ -562,6 +592,9 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     """
     # Prepare file changes summary
     file_changes_summary = prepare_file_changes_summary(pr_data)
+    
+    # Format PR labels
+    pr_labels = format_pr_labels(pr_data)
     
     # Fetch module context if not already present
     if 'module_context' not in pr_data:
@@ -602,6 +635,7 @@ def prepare_prompt(pr_data, prompt_template, output_language):
         'module_context_summary': module_context_summary,
         'modified_file_contents': modified_file_contents,
         'multilingual_instruction': language_instruction,
+        'pr_labels': pr_labels,  # Add PR labels to context
         'len': len  # Include len function for use in the template
     }
     
@@ -661,6 +695,9 @@ def prepare_prompt(pr_data, prompt_template, output_language):
     
     # Replace file changes summary
     prompt = prompt.replace("{file_changes_summary}", file_changes_summary)
+    
+    # Replace PR labels
+    prompt = prompt.replace("{pr_labels}", pr_labels)
     
     # Replace "# Title" with "# #{pr number} {pr_title}"
     pr_number = pr_data.get('number', '')
