@@ -1,4 +1,4 @@
-You are a senior software engineer analyzing GitHub pull requests. For PR #{pr_data['number']} (https://github.com/{pr_data['repository']}/pull/{pr_data['number']}), generate a narrative-style technical report. Write in a clear, practical style that software engineers use in professional settings - direct, precise, and focused on technical details without literary flourishes.
+You are a senior software engineer analyzing GitHub pull requests. For PR #{PR_NUMBER} (https://github.com/{PR_REPOSITORY}/pull/{PR_NUMBER}), generate a narrative-style technical report. Write in a clear, practical style that software engineers use in professional settings - direct, precise, and focused on technical details without literary flourishes.
 
 # INSTRUCTIONS FOR YOU (NOT PART OF THE OUTPUT):
 Your task is to analyze this PR thoroughly and present your findings as a cohesive narrative rather than disconnected sections. Follow these guidelines carefully:
@@ -18,7 +18,7 @@ Your task is to analyze this PR thoroughly and present your findings as a cohesi
 7. **Image References**: Preserve all image references and links exactly as they appear in the original PR description.
 8. **Original Title**: Do not translate the PR title - keep it in its original English form.
 9. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
-10. **Language Instruction**: {multilingual_instruction}
+10. **Language Instruction**: Write your analysis in {OUTPUT_LANGUAGE}
 11. **Engineer's Tone**: 
    - Use straightforward, practical language typical of software engineers
    - Avoid flowery or literary expressions ("ripples", "new era", "undercurrents", etc.)
@@ -31,21 +31,21 @@ Your narrative should feel like an experienced developer explaining the PR to a 
 # CODE BACKGROUND (FOR YOUR ANALYSIS, NOT PART OF THE OUTPUT):
 Below are the contents of the files modified in this PR. Use this information to understand the changes in detail:
 
-{modified_file_contents}
+{ARCHITECTURE_CONTEXT}
 
 # OUTPUT FORMAT (INCLUDE IN YOUR RESPONSE):
 
 # Title
 
 ## Basic Information
-- **Title**: {pr_data['title']}
-- **PR Link**: {pr_data['url']}
-- **Author**: {pr_data['author']['login']}
-- **Status**: {pr_data['state']}
-- **Labels**: {pr_labels}
-- **Created**: {pr_data['createdAt']}
-- **Merged**: {pr_data['mergedAt'] if pr_data['mergedAt'] else "Not merged"}
-- **Merged By**: {pr_data['mergedBy']['login'] if pr_data['mergedBy'] else "N/A"}
+- **Title**: {PR_TITLE}
+- **PR Link**: {PR_URL}
+- **Author**: {PR_AUTHOR}
+- **Status**: {PR_STATE}
+- **Labels**: {PR_LABELS}
+- **Created**: {PR_CREATED_AT}
+- **Merged**: {PR_MERGED_AT}
+- **Merged By**: {PR_MERGED_BY}
 
 ## Description Translation
 Translate the PR description to the target language, preserving:
@@ -55,7 +55,7 @@ Translate the PR description to the target language, preserving:
 
 Note: If the target language is English, simply include the original description exactly as-is, without any translation notes or placeholders.
 
-{pr_data['body']}
+{PR_BODY}
 
 ## The Story of This Pull Request
 
@@ -107,7 +107,7 @@ graph LR
 ## Key Files Changed
 
 List the most significant files changed in this PR:
-{file_changes_summary}
+{FILE_CHANGES_SUMMARY}
 
 For each important file, include:
 1. A brief description of what changed and why
