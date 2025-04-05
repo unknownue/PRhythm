@@ -78,7 +78,7 @@ class ReportGenerator:
         # Generate report for each language
         for language in languages:
             try:
-                logger.info(f"Generating {language} report for {repo}#{pr_number}")
+                logger.info(f"📊 Generating {language} report for {repo}#{pr_number}")
                 result = self.pr_analyzer.analyze_pr_from_repo(
                     repo, 
                     pr_number, 
@@ -107,7 +107,7 @@ class ReportGenerator:
                     results["success"] = False
                 
             except Exception as e:
-                logger.error(f"Error generating {language} report for {repo}#{pr_number}: {e}")
+                logger.error(f"❌ Error generating {language} report: {e}")
                 results["languages"][language] = {
                     "success": False,
                     "language_name": get_language_name(language),
@@ -147,7 +147,7 @@ class ReportGenerator:
         
         # Check if all reports were generated successfully
         if not results["success"]:
-            logger.warning("Not all language reports were generated successfully")
+            logger.warning("⚠️ Some language reports failed")
         
         # Prepare multilingual report
         multilingual_content = []
@@ -166,7 +166,7 @@ class ReportGenerator:
                     multilingual_content.append(analysis_content)
                     multilingual_content.append("\n\n---\n\n")  # Add separator
                 except Exception as e:
-                    logger.error(f"Error reading analysis file for {language}: {e}")
+                    logger.error(f"❌ Error reading analysis for {language}: {e}")
         
         # If no content, return error
         if not multilingual_content:
@@ -194,7 +194,7 @@ class ReportGenerator:
             }
             
         except Exception as e:
-            logger.error(f"Error saving multilingual report: {e}")
+            logger.error(f"❌ Error saving multilingual report: {e}")
             results["multilingual"] = {
                 "success": False,
                 "error": str(e)
@@ -290,7 +290,7 @@ def main():
             
             # Print path to multilingual report if available
             if results.get("multilingual", {}).get("success", False):
-                logger.info(f"Multilingual report saved to: {results['multilingual']['report_path']}")
+                logger.info(f"📑 Multilingual report: {results['multilingual']['report_path']}")
         else:
             results = report_generator.generate_report(
                 args.repo,
@@ -304,16 +304,16 @@ def main():
             # Print paths to reports
             for language, lang_result in results["languages"].items():
                 if lang_result.get("success", False) and "analysis_path" in lang_result:
-                    logger.info(f"{lang_result['language_name']} report saved to: {lang_result['analysis_path']}")
+                    logger.info(f"📄 {lang_result['language_name']} report: {lang_result['analysis_path']}")
         
         # Print overall status
         if results["success"]:
-            logger.info("All reports generated successfully")
+            logger.info("✅ All reports generated successfully")
         else:
-            logger.warning("Some reports failed to generate")
+            logger.warning("⚠️ Some reports failed to generate")
             
     except Exception as e:
-        logger.error(f"Error in report_generator: {e}")
+        logger.error(f"💥 Error in report generator: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

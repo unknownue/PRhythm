@@ -277,28 +277,28 @@ def update_pr_reports():
     # Get project root directory
     project_root = get_project_root()
     
-    logger.info("===== PR Analysis Update Started %s =====", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("🚀 ===== PR Analysis Update Started %s =====", datetime.now().strftime("%m-%d %H:%M"))
     
     # 1. Check and update repositories
-    logger.info("1. Checking and updating repositories...")
+    logger.info("📂 Checking repositories...")
     check_pull_repo_script = project_root / "pipeline" / "check_pull_repo.py"
     returncode, stdout, stderr = run_script(check_pull_repo_script)
     if returncode != 0:
-        logger.error("Failed to check and update repositories: %s", stderr)
+        logger.error("❌ Repository check failed: %s", stderr)
         return 1
     
     # 2. Read configuration
     config_path = project_root / "config.json"
     config = read_config(config_path)
     if not config:
-        logger.error("Failed to read configuration")
+        logger.error("❌ Config not found")
         return 1
     
     # Get repositories from config
-    logger.info("2. Getting configured repository list...")
+    logger.info("📋 Loading repository list...")
     repositories = get_repositories_from_config(config)
     if not repositories:
-        logger.error("No repositories found in configuration")
+        logger.error("❌ No repositories in config")
         return 1
     
     # Get output language from config
@@ -309,23 +309,23 @@ def update_pr_reports():
     
     # Process each repository
     for repo in repositories:
-        logger.info("===== Processing repository: %s =====", repo)
+        logger.info("🔍 Processing repo: %s", repo)
         
         # 3. Get unsynchronized PRs
-        logger.info("3. Getting unsynchronized PRs...")
+        logger.info("🔄 Fetching unsync PRs...")
         track_merged_prs_script = project_root / "pipeline" / "track_merged_prs.py"
         returncode, stdout, stderr = run_script(track_merged_prs_script, "--repo", repo)
         
         if returncode != 0:
-            logger.error("Failed to get unsynchronized PRs: %s", stderr)
+            logger.error("❌ Failed to get PRs: %s", stderr)
             continue
         
         # Extract PR numbers
         pr_numbers = extract_pr_numbers(stdout)
-        logger.info("Found %d unsynchronized PRs", len(pr_numbers))
+        logger.info("📊 Found %d PRs to process", len(pr_numbers))
         
         if not pr_numbers:
-            logger.info("No PRs to process, continuing to next repository")
+            logger.info("ℹ️ No PRs to process")
             continue
         
         # 4. Process each unsynchronized PR
@@ -334,15 +334,15 @@ def update_pr_reports():
                 continue
                 
             logger.info("")
-            logger.info("===== Processing PR #%s =====", pr_number)
+            logger.info("🔎 PR #%s", pr_number)
             
             # 5. Get PR information
-            logger.info("5. Getting PR detailed information...")
+            logger.info("📥 Fetching PR details...")
             fetch_pr_info_script = project_root / "pipeline" / "fetch_pr_info.py"
             returncode, stdout, stderr = run_script(fetch_pr_info_script, "--repo", repo, "--pr", pr_number)
             
             if returncode != 0:
-                logger.error("Failed to fetch PR information: %s", stderr)
+                logger.error("❌ PR info fetch failed: %s", stderr)
                 continue
             
             # Get the latest PR information JSON file
@@ -350,10 +350,10 @@ def update_pr_reports():
             pr_json = find_pr_json_file(repo_name, pr_number, config)
             
             if not pr_json:
-                logger.error("Error: Cannot find JSON file for PR #%s, skipping analysis", pr_number)
+                logger.error("❌ PR JSON file not found for #%s", pr_number)
                 continue
             
-            logger.info("Found PR information file: %s", pr_json)
+            logger.info("📄 PR info: %s", pr_json)
             
             # 6. Analyze PR using configured language and provider
             analysis_success = True
@@ -452,7 +452,7 @@ def update_pr_reports():
                     analysis_success = False
             
             # 7. Update processing status (after all languages are processed)
-            logger.info("7. Updating PR processing status...")
+            logger.info("✅ Updating PR status...")
             if analysis_success:
                 returncode, stdout, stderr = run_script(
                     track_merged_prs_script,
@@ -461,9 +461,9 @@ def update_pr_reports():
                     "--operation", "analysis_complete",
                     "--status", "success"
                 )
-                logger.info("PR #%s analysis completed", pr_number)
+                logger.info("✨ PR #%s analysis completed", pr_number)
             else:
-                logger.error("PR #%s analysis failed for one or more languages", pr_number)
+                logger.error("❌ PR #%s analysis failed", pr_number)
                 returncode, stdout, stderr = run_script(
                     track_merged_prs_script,
                     "--repo", repo,
@@ -473,11 +473,11 @@ def update_pr_reports():
                 )
             
             # Optional: Add delay to avoid API rate limits
-            logger.info("Waiting 5 seconds before processing next PR...")
+            logger.info("⏱️ Waiting 5s before next PR...")
             logger.info("")
             time.sleep(5)
     
-    logger.info("===== PR Analysis Update Completed %s =====", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("🏁 ===== PR Analysis Completed %s =====", datetime.now().strftime("%m-%d %H:%M"))
     return 0
 
 def main():
@@ -499,21 +499,21 @@ def main():
         config = read_config(config_path)
         
         if args.schedule:
-            logger.info("Running in scheduled mode (interval: %d seconds)", args.schedule)
+            logger.info("🔄 Running in scheduled mode: %ds", args.schedule)
             
             while True:
                 update_pr_reports()
-                logger.info("Sleeping for %d seconds before next run...", args.schedule)
+                logger.info("💤 Sleeping for %ds...", args.schedule)
                 time.sleep(args.schedule)
         else:
-            logger.info("Running in single-execution mode")
+            logger.info("▶️ Running in single mode")
             update_pr_reports()
             
     except KeyboardInterrupt:
-        logger.info("Process interrupted by user")
+        logger.info("🛑 Process interrupted")
         sys.exit(0)
     except Exception as e:
-        logger.error("Error in main function: %s", e)
+        logger.error("💥 Error: %s", e)
         sys.exit(1)
 
 if __name__ == "__main__":

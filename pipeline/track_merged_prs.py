@@ -98,7 +98,7 @@ def write_status_file(status_file_path, status_data):
         save_json(status_data, status_file_path)
         return True
     except Exception as e:
-        logger.error(f"Error writing status file: {e}")
+        logger.error(f"❌ Status file write error: {e}")
         return False
 
 def get_merged_prs(repo, token=None, limit=10):
@@ -127,12 +127,12 @@ def get_merged_prs(repo, token=None, limit=10):
         merged_prs = [pr for pr in response.json() if pr.get("merged_at")]
         
         if not merged_prs:
-            logger.info(f"No merged PRs found for {repo}")
+            logger.info(f"ℹ️ No merged PRs found for {repo}")
             return []
         
         return merged_prs
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching PRs for {repo}: {e}")
+        logger.error(f"❌ PR fetch error for {repo}: {e}")
         return []
 
 def get_repo_status(status_data, repo):
@@ -303,7 +303,7 @@ def main():
             repositories = [validate_repo_url(args.repo)]
         else:
             if not config or 'github' not in config or 'repositories' not in config['github']:
-                logger.error("No repositories found in configuration")
+                logger.error("❌ No repositories in config")
                 sys.exit(1)
             
             repositories = config['github']['repositories']
@@ -317,28 +317,34 @@ def main():
         # Process each repository
         updated = False
         for repo in repositories:
-            # Get repository status
-            repo_status = get_repo_status(status_data, repo)
-            latest_processed_pr = repo_status["latest_processed_pr"]
-            latest_merged_at = repo_status.get("latest_merged_at")  # Use get() to safely access the field
+            logger.info(f"🔍 Fetching merged PRs for {repo}...")
             
-            # Get merged PRs
-            logger.info(f"Fetching merged PRs for {repo}...")
-            merged_prs = get_merged_prs(repo, args.token, args.limit)
-            
-            # Find unsynced PRs
-            unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr, latest_merged_at)
-            
-            if unsynced_prs:
-                logger.info(f"Found {len(unsynced_prs)} unsynced PR(s) for {repo}")
-                for pr in unsynced_prs:
-                    print(f"#{pr['number']} - {pr['title']} ({pr['html_url']})")
+            try:
+                # Get repository status
+                repo_status = get_repo_status(status_data, repo)
+                latest_processed_pr = repo_status["latest_processed_pr"]
+                latest_merged_at = repo_status.get("latest_merged_at")  # Use get() to safely access the field
+                
+                # Get merged PRs
+                merged_prs = get_merged_prs(repo, args.token, args.limit)
+                
+                # Find unsynced PRs
+                unsynced_prs = find_unsynced_prs(merged_prs, latest_processed_pr, latest_merged_at)
+                
+                if unsynced_prs:
+                    logger.info(f"📊 Found {len(unsynced_prs)} unsynced PR(s) for {repo}")
                     
-                # Update repository status with the latest PR
-                if update_repo_status(status_data, repo, unsynced_prs[0], "track_merged_prs"):
-                    updated = True
-            else:
-                logger.info(f"No unsynced PRs found for {repo}")
+                    # Print unsynced PRs
+                    for pr in unsynced_prs:
+                        print(f"#{pr['number']} - {pr['title']}")
+                    
+                    # Update repository status with the latest PR
+                    if update_repo_status(status_data, repo, unsynced_prs[0], "track_merged_prs"):
+                        updated = True
+                else:
+                    logger.info(f"✅ No unsynced PRs for {repo}")
+            except Exception as e:
+                logger.error(f"💥 Error processing PRs: {e}")
         
         # Write status file if updated
         if updated:
@@ -346,7 +352,7 @@ def main():
             logger.info(f"Status file updated: {status_file_path}")
         
     except Exception as e:
-        logger.error(f"Error processing PRs: {e}")
+        logger.error(f"💥 Error processing PRs: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

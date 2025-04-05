@@ -59,9 +59,9 @@ class PRAnalyzer:
         Returns:
             dict: Analysis result
         """
-        # Validate language
-        if not is_supported_language(language):
-            logger.warning(f"Unsupported language: {language}. Defaulting to English.")
+        # Handle unsupported languages
+        if not language or language not in self.languages:
+            logger.warning(f"⚠️ Unsupported language: {language}. Using English.")
             language = "en"
         
         # Extract PR info
@@ -83,14 +83,22 @@ class PRAnalyzer:
             "prompt": prompt
         }
         
-        # In dry run mode, just return the prompt without calling API
+        # Dry run mode - don't call LLM API
         if dry_run:
-            logger.info(f"Dry run mode: Not calling LLM API for {repo}#{pr_number} in {language}")
-            result["analysis"] = f"# {get_language_name(language)}\n\n[Dry run mode: This is a placeholder for the actual analysis]"
-            return result
+            logger.info(f"🛠️ Dry run: No API calls for {repo}#{pr_number}")
+            return {
+                "success": True,
+                "language": language,
+                "analysis": {"dummy": "This is a dry run - no actual analysis"},
+                "language_name": get_language_name(language),
+                "repo": repo,
+                "pr_number": pr_number,
+                "status": "success"
+            }
+        
+        logger.info(f"🧠 Analyzing {repo}#{pr_number} in {language}")
         
         # Call LLM API to generate analysis
-        logger.info(f"Generating analysis for {repo}#{pr_number} in {language}")
         try:
             analysis = self.provider.get_completion(prompt)
             result["analysis"] = analysis
@@ -113,12 +121,25 @@ class PRAnalyzer:
                         save_text(diff, diff_path)
                         result["diff_path"] = str(diff_path)
             
+            logger.info(f"✅ Analysis completed")
+            
+            # Print path to analysis file if available
+            if "analysis_path" in result:
+                logger.info(f"📄 Analysis saved: {result['analysis_path']}")
+            
             return result
             
         except Exception as e:
-            logger.error(f"Error generating analysis: {e}")
-            result["error"] = str(e)
-            return result
+            logger.error(f"❌ Analysis error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "language": language,
+                "language_name": get_language_name(language),
+                "repo": repo,
+                "pr_number": pr_number,
+                "status": "error"
+            }
     
     def analyze_pr_from_file(self, json_file_path: Union[str, Path], language: str = "en",
                             output_dir: Optional[Path] = None, save_diff: bool = False,
@@ -140,8 +161,11 @@ class PRAnalyzer:
         try:
             pr_data = load_json(json_file_path)
         except Exception as e:
-            logger.error(f"Error loading PR data from {json_file_path}: {e}")
-            raise
+            logger.error(f"❌ Error loading PR data: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
         
         # Use output directory from file path if not provided
         if not output_dir:
@@ -294,10 +318,10 @@ def main():
         
         # Print path to analysis file if available
         if "analysis_path" in result:
-            logger.info(f"Analysis saved to: {result['analysis_path']}")
+            logger.info(f"📄 Analysis saved: {result['analysis_path']}")
         
     except Exception as e:
-        logger.error(f"Error in analyze_pr: {e}")
+        logger.error(f"💥 Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

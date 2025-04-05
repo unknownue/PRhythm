@@ -95,9 +95,9 @@ class GitHubClient:
             process.kill()
             raise
     
-    def fetch_pr_info(self, repo: str, pr_number: Union[int, str]) -> Dict[str, Any]:
+    def get_pr_info(self, repo, pr_number):
         """
-        Fetch PR information using GitHub CLI
+        Get PR information from GitHub API
         
         Args:
             repo: Repository name (owner/repo)
@@ -105,10 +105,8 @@ class GitHubClient:
             
         Returns:
             dict: PR information
-            
-        Raises:
-            RuntimeError: If there is an error fetching the PR information
         """
+        logger.info(f"🔍 Fetching PR #{pr_number} from {repo}")
         try:
             # Validate repository format
             repo = self.validate_repo_url(repo)
@@ -133,12 +131,12 @@ class GitHubClient:
             
             return pr_data
         except Exception as e:
-            logger.error(f"Error fetching PR information: {e}")
-            raise RuntimeError(f"Failed to fetch PR information: {e}")
+            logger.error(f"❌ PR info fetch failed: {e}")
+            raise
     
-    def fetch_pr_diff(self, repo: str, pr_number: Union[int, str]) -> str:
+    def get_pr_diff(self, repo, pr_number):
         """
-        Fetch PR diff using GitHub CLI
+        Get PR diff from GitHub API
         
         Args:
             repo: Repository name (owner/repo)
@@ -146,10 +144,8 @@ class GitHubClient:
             
         Returns:
             str: PR diff
-            
-        Raises:
-            RuntimeError: If there is an error fetching the PR diff
         """
+        logger.info(f"📄 Fetching diff for {repo}#{pr_number}")
         try:
             # Validate repository format
             repo = self.validate_repo_url(repo)
@@ -165,27 +161,26 @@ class GitHubClient:
             
             return stdout
         except Exception as e:
-            logger.error(f"Error fetching PR diff: {e}")
-            raise RuntimeError(f"Failed to fetch PR diff: {e}")
+            logger.error(f"❌ Diff fetch failed: {e}")
+            raise
     
-    def get_merged_prs(self, repo: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_merged_prs(self, repo, limit=10):
         """
-        Get a list of merged PRs for a repository using GitHub API
+        Get merged PRs from GitHub API
         
         Args:
             repo: Repository name (owner/repo)
-            limit: Maximum number of PRs to fetch
+            limit: Maximum number of PRs to return
             
         Returns:
-            list: List of merged PR information
+            list: List of merged PRs
         """
+        logger.info(f"📊 Getting merged PRs for {repo} (limit: {limit})")
         try:
             # Validate repository format
             repo = self.validate_repo_url(repo)
             
             # Fetch merged PRs
-            logger.info(f"Fetching merged PRs for {repo} (limit: {limit})")
-            
             url = f"{self.api_base_url}/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page={limit}"
             response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
@@ -193,62 +188,65 @@ class GitHubClient:
             # Filter to only merged PRs
             merged_prs = [pr for pr in response.json() if pr.get("merged_at")]
             
-            if not merged_prs:
-                logger.info(f"No merged PRs found for {repo}")
+            if len(merged_prs) == 0:
+                logger.info(f"ℹ️ No merged PRs found for {repo}")
                 return []
             
             return merged_prs
         except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching merged PRs for {repo}: {e}")
-            return []
+            if hasattr(e, 'response') and e.response.status_code == 404:
+                logger.error(f"❌ Repository not found: {repo}")
+                return []
+            logger.error(f"❌ Error fetching PRs for {repo}: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Unexpected error fetching merged PRs for {repo}: {e}")
-            return []
+            logger.error(f"💥 Unexpected error fetching PRs: {e}")
+            raise
     
-    def clone_repository(self, repo: str, target_dir: Union[str, Path], skip_clone: bool = False) -> bool:
+    def get_repository(self, repo, clone_dir):
         """
-        Clone or pull a repository
+        Get repository - clone or pull if exists
         
         Args:
             repo: Repository name (owner/repo)
-            target_dir: Directory to clone the repository into
-            skip_clone: If True, skip the actual clone/pull operation
+            clone_dir: Directory to clone repository to
             
         Returns:
-            bool: True if successful, False otherwise
+            Path: Path to repository
         """
-        if skip_clone:
-            logger.info(f"Skipping clone/pull for repository: {repo}")
-            return True
+        # Skip if repo_url is None or empty
+        if not repo:
+            logger.info(f"⏩ Skipping repo: empty repo name")
+            return None
             
         try:
             # Validate repository format
             repo = self.validate_repo_url(repo)
             
             # Ensure target directory exists
-            target_dir = Path(target_dir)
+            target_dir = Path(clone_dir) / repo.split('/')[1]
             ensure_directory(target_dir.parent)
             
             if target_dir.exists() and (target_dir / ".git").exists():
                 # Repository already exists, pull latest changes
-                logger.info(f"Updating existing repository: {repo}")
+                logger.info(f"♻️ Updating repo: {repo}")
                 cmd = f"cd {target_dir} && git pull"
             else:
                 # Clone the repository
-                logger.info(f"Cloning repository: {repo}")
+                logger.info(f"📥 Cloning repo: {repo}")
                 cmd = f"git clone https://github.com/{repo}.git {target_dir}"
             
             # Run command
             returncode, stdout, stderr = self.run_gh_command(cmd, timeout=300)
             
             if returncode != 0:
-                logger.error(f"Error with repository {repo}: {stderr}")
-                return False
+                logger.error(f"❌ Git operation failed: {stderr}")
+                return None
             
-            return True
+            return target_dir
         except subprocess.TimeoutExpired:
-            logger.error(f"Timeout error with repository {repo}")
-            return False
+            logger.error(f"⏱️ Timeout: {repo}")
+            return None
         except Exception as e:
-            logger.error(f"Unexpected error with repository {repo}: {e}")
-            return False
+            logger.error(f"💥 Error with repo {repo}: {e}")
+            return None
