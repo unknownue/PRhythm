@@ -17,21 +17,41 @@ Your task is to analyze this PR thoroughly and present your findings as a cohesi
 6. **Contextual Understanding**: Explain not just what changed, but why it changed and what can be learned.
 7. **Image References**: Preserve all image references and links exactly as they appear in the original PR description.
 8. **Original Title**: Do not translate the PR title - keep it in its original English form.
-9. **Code Background**: Use the provided modified file contents to understand the context and details of the changes.
-10. **Language Instruction**: Write your analysis in {OUTPUT_LANGUAGE}
+9. **Code Background**: Use the provided code context to understand the changes in detail.
+10. **Language Instruction**: {multilingual_instruction}
 11. **Engineer's Tone**: 
    - Use straightforward, practical language typical of software engineers
    - Avoid flowery or literary expressions ("ripples", "new era", "undercurrents", etc.)
    - Focus on technical precision and clarity rather than dramatic narrative
    - Use direct, matter-of-fact descriptions of technical concepts and implementations
    - Maintain a professional, analytical tone throughout the report
+12. **Context Precision**: Pay special attention to the extracted before/after contexts to understand the exact nature of the changes.
+13. **Relationship Analysis**: Consider the component relationships provided to understand architectural impacts.
 
 Your narrative should feel like an experienced developer explaining the PR to a colleague - technically precise, practical, and focused on the engineering aspects without unnecessary embellishment.
 
 # CODE BACKGROUND (FOR YOUR ANALYSIS, NOT PART OF THE OUTPUT):
-Below are the contents of the files modified in this PR. Use this information to understand the changes in detail:
+Below are the most relevant code sections extracted by our context extraction system:
 
-{ARCHITECTURE_CONTEXT}
+## BEFORE CHANGES:
+{before_extracted_context}
+
+## AFTER CHANGES:
+{after_extracted_context}
+
+## SHARED CONTEXT (Unchanged but relevant code):
+{shared_context}
+
+## COMPONENT RELATIONSHIPS:
+
+### Before Changes:
+{before_related_components}
+
+### After Changes:
+{after_related_components}
+
+# PR DIFF SUMMARY:
+{pr_diff_summary}
 
 # OUTPUT FORMAT (INCLUDE IN YOUR RESPONSE):
 
