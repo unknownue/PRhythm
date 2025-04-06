@@ -20,4 +20,18 @@ rich>=13.0.0
 
 # Markdown viewer dependencies
 flask>=2.0.1
-pygments>=2.10.0 
+pygments>=2.10.0
+
+# Context extraction dependencies
+nltk>=3.8.1
+scikit-learn>=1.2.0
+numpy>=1.24.0
+pandas>=2.0.0
+transformers>=4.30.0
+sentence-transformers>=2.2.2
+tiktoken>=0.4.0
+
+# Visualization dependencies
+pyppeteer>=1.0.2  # use to render mermaid in docker
+pymdown-extensions>=9.10  # support markdown extensions
+networkx>=3.0  # for building and processing graph data 

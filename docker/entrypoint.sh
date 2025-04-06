@@ -4,6 +4,11 @@
 
 set -e
 
+echo "Starting PRhythm service with context extraction support..."
+
+# Create logs directory if it doesn't exist
+mkdir -p /app/logs
+
 # Initial setup
 python pipeline/check_pull_repo.py --skip-clone
 

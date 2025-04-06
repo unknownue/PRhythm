@@ -7,14 +7,16 @@ update_pr_reports.py - Automatically update PR analysis reports
 This script automatically performs the following steps:
 1. Check and update repositories
 2. Get unsynchronized PRs
-3. Get PR detailed information
-4. Analyze PRs and generate reports (with code diff saved as patch files)
-5. Update processing status
+3. Get PR detailed information using GitHub CLI
+4. Extract relevant context from local repository
+5. Analyze PRs and generate reports with extracted context
+6. Update processing status
 
 This is a Python equivalent of the update_pr_reports.sh bash script.
 
 Features:
 - Automatically fetches and analyzes new PRs
+- Extracts relevant code context to improve analysis quality and reduce token usage
 - Generates analysis reports in configured languages
 - Saves PR code diffs as separate patch files for easier review
 - Supports scheduled execution for continuous monitoring
@@ -34,6 +36,7 @@ from datetime import datetime
 import time
 import os
 import csv
+import json
 
 # Import common utilities
 from common import (
@@ -65,6 +68,11 @@ def parse_arguments():
         type=str, 
         default="config.json",
         help='Path to the configuration file'
+    )
+    parser.add_argument(
+        '--disable-context-extraction',
+        action='store_true',
+        help='Disable smart context extraction (enabled by default)'
     )
     return parser.parse_args()
 
@@ -235,6 +243,94 @@ def find_pr_json_file(repo_name, pr_number, config):
     
     return None
 
+def extract_context_from_pr(pr_json_path, repo_path, project_root, config):
+    """
+    Extract context from PR using extract_context.py
+    
+    Args:
+        pr_json_path: Path to PR JSON file
+        repo_path: Path to local repository
+        project_root: Project root directory
+        config: Configuration dictionary
+        
+    Returns:
+        dict: Extracted context or None if extraction failed
+    """
+    logger.info("🔍 Extracting context from PR...")
+    
+    try:
+        # Load PR JSON
+        with open(pr_json_path, 'r') as f:
+            pr_data = json.load(f)
+        
+        # Get PR number and diff
+        pr_number = pr_data.get('number')
+        diff_content = pr_data.get('diff')
+        
+        if not pr_number or not diff_content:
+            logger.error("❌ PR JSON file missing number or diff")
+            return None
+        
+        # Get provider information from config
+        provider_name = config.get('llm', {}).get('provider', 'openai')
+        provider_config = config.get('llm', {}).get('providers', {}).get(provider_name, {})
+        model = provider_config.get('model', 'gpt-4-turbo')
+        logger.info(f"Using {provider_name} provider with {model} model for context extraction")
+        
+        # Prepare temp file for diff
+        import tempfile
+        temp_diff_file = tempfile.NamedTemporaryFile(mode='w+', suffix='.diff', delete=False)
+        try:
+            # Write diff content to temp file
+            temp_diff_file.write(diff_content)
+            temp_diff_file.close()
+            
+            # Run extract_context.py
+            extract_context_script = project_root / "pipeline" / "extract_context.py"
+            
+            # Set arguments
+            args = [
+                "--repo-path", str(repo_path),
+                "--diff-file", temp_diff_file.name,
+                "--context-only",
+                "--provider", provider_name
+            ]
+            
+            # Add model if specified
+            if model:
+                args.extend(["--model", model])
+            
+            # Run the script
+            returncode, stdout, stderr = run_script(extract_context_script, *args, timeout=300)
+            
+            if returncode != 0:
+                logger.error(f"❌ Context extraction failed: {stderr}")
+                return None
+            
+            # Parse output to find context file path
+            context_file_match = re.search(r'Context saved to (.+\.json)', stdout)
+            if not context_file_match:
+                logger.error("❌ Could not find context file path in output")
+                return None
+            
+            context_file = context_file_match.group(1)
+            logger.info(f"📄 Context extracted to: {context_file}")
+            
+            # Load context
+            with open(context_file, 'r') as f:
+                context = json.load(f)
+            
+            return context
+        finally:
+            # Delete temp file
+            try:
+                os.unlink(temp_diff_file.name)
+            except:
+                pass
+    except Exception as e:
+        logger.error(f"❌ Error extracting context: {str(e)}")
+        return None
+
 def record_failed_request(repo, pr_number, language, error_message):
     """
     Record failed LLM request to a local file
@@ -272,7 +368,7 @@ def record_failed_request(repo, pr_number, language, error_message):
     except Exception as e:
         logger.error(f"Failed to record failed LLM request: {str(e)}")
 
-def update_pr_reports():
+def update_pr_reports(enable_context_extraction=False):
     """Process PR reports update workflow"""
     # Get project root directory
     project_root = get_project_root()
@@ -328,6 +424,23 @@ def update_pr_reports():
             logger.info("ℹ️ No PRs to process")
             continue
         
+        # Determine repository path for context extraction
+        repo_name = repo.split("/")[1] if "/" in repo else repo
+        repo_path = os.path.join(os.getcwd(), 'repos', repo.replace('/', '_'))
+        
+        # Check if repository exists (needed for context extraction)
+        repo_exists = os.path.exists(repo_path) and os.path.isdir(repo_path)
+        if enable_context_extraction and not repo_exists:
+            logger.warning("⚠️ Local repository not found at %s, context extraction may fail", repo_path)
+            # Try to find it in common locations
+            for common_path in ['repositories', '.']:
+                potential_path = os.path.join(os.getcwd(), common_path, repo.replace('/', '_'))
+                if os.path.exists(potential_path) and os.path.isdir(potential_path):
+                    repo_path = potential_path
+                    repo_exists = True
+                    logger.info("✅ Found repository at %s", repo_path)
+                    break
+        
         # 4. Process each unsynchronized PR
         for pr_number in pr_numbers:
             if not pr_number:
@@ -336,7 +449,7 @@ def update_pr_reports():
             logger.info("")
             logger.info("🔎 PR #%s", pr_number)
             
-            # 5. Get PR information
+            # 5. Fetch PR information
             logger.info("📥 Fetching PR details...")
             fetch_pr_info_script = project_root / "pipeline" / "fetch_pr_info.py"
             returncode, stdout, stderr = run_script(fetch_pr_info_script, "--repo", repo, "--pr", pr_number)
@@ -346,7 +459,6 @@ def update_pr_reports():
                 continue
             
             # Get the latest PR information JSON file
-            repo_name = repo.split("/")[1] if "/" in repo else repo
             pr_json = find_pr_json_file(repo_name, pr_number, config)
             
             if not pr_json:
@@ -355,10 +467,37 @@ def update_pr_reports():
             
             logger.info("📄 PR info: %s", pr_json)
             
-            # 6. Analyze PR using configured language and provider
+            # 6. Extract context if enabled
+            context = None
+            if enable_context_extraction and repo_exists:
+                logger.info("🧩 Extracting PR context...")
+                context = extract_context_from_pr(pr_json, repo_path, project_root, config)
+                
+                if context:
+                    logger.info("✅ Context extraction successful")
+                    
+                    # Update PR JSON with extracted context
+                    try:
+                        with open(pr_json, 'r') as f:
+                            pr_data = json.load(f)
+                        
+                        # Add context to PR data
+                        pr_data['context'] = context
+                        
+                        # Save updated PR data
+                        with open(pr_json, 'w') as f:
+                            json.dump(pr_data, f, indent=2)
+                            
+                        logger.info("✅ PR JSON updated with context")
+                    except Exception as e:
+                        logger.error(f"❌ Error updating PR JSON with context: {str(e)}")
+                else:
+                    logger.warning("⚠️ Context extraction failed, proceeding without context")
+            
+            # 7. Analyze PR using configured language and provider
             analysis_success = True
             for output_language in output_languages:
-                logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
+                logger.info("🔬 Analyzing PR #%s and generating report in %s language using %s provider...", 
                            pr_number, output_language, default_provider)
                 analyze_pr_script = project_root / "pipeline" / "analyze_pr.py"
                 
@@ -398,6 +537,20 @@ def update_pr_reports():
                     os.makedirs(analysis_dir, exist_ok=True)
                     logger.warning("Using fallback analysis directory: %s", analysis_dir)
                 
+                # Prepare analyze_pr.py arguments
+                analyze_args = [
+                    "--json", pr_json, 
+                    "--language", output_language,
+                    "--config", str(config_path),
+                    "--save-diff"
+                ]
+                
+                # Add context extraction args if context was successfully extracted
+                if enable_context_extraction and context:
+                    analyze_args.append("--extract-context")
+                    if repo_exists:
+                        analyze_args.extend(["--local-repo-path", str(repo_path)])
+                
                 # Run analyze_pr.py with explicit config path
                 max_retries = 2  # Maximum retry attempts
                 retry_count = 0
@@ -410,10 +563,7 @@ def update_pr_reports():
                     
                     returncode, stdout, stderr = run_script(
                         analyze_pr_script, 
-                        "--json", pr_json, 
-                        "--language", output_language,
-                        "--config", str(config_path),
-                        "--save-diff"
+                        *analyze_args
                     )
                     
                     # Check if execution was successful
@@ -442,7 +592,7 @@ def update_pr_reports():
                 # Check if analysis was successful
                 if execute_success:
                     # Extract the saved report path from stdout
-                    report_path_match = re.search(r"Saved analysis report: (.+\.md)", stdout)
+                    report_path_match = re.search(r"Analysis saved to: (.+\.md)", stdout)
                     
                     if report_path_match:
                         report_path = report_path_match.group(1)
@@ -451,7 +601,7 @@ def update_pr_reports():
                     logger.error("Failed to analyze PR #%s in %s language: %s", pr_number, output_language, stderr)
                     analysis_success = False
             
-            # 7. Update processing status (after all languages are processed)
+            # 8. Update processing status (after all languages are processed)
             logger.info("✅ Updating PR status...")
             if analysis_success:
                 returncode, stdout, stderr = run_script(
@@ -498,16 +648,24 @@ def main():
         # Read configuration
         config = read_config(config_path)
         
+        # Check if context extraction is disabled via command line flag
+        enable_context_extraction = True  # Default enabled
+        if args.disable_context_extraction:
+            enable_context_extraction = False
+            logger.info("⚠️ Smart context extraction disabled via command line flag")
+        else:
+            logger.info("🧩 Smart context extraction enabled (default)")
+        
         if args.schedule:
             logger.info("🔄 Running in scheduled mode: %ds", args.schedule)
             
             while True:
-                update_pr_reports()
+                update_pr_reports(enable_context_extraction)
                 logger.info("💤 Sleeping for %ds...", args.schedule)
                 time.sleep(args.schedule)
         else:
             logger.info("▶️ Running in single mode")
-            update_pr_reports()
+            update_pr_reports(enable_context_extraction)
             
     except KeyboardInterrupt:
         logger.info("🛑 Process interrupted")

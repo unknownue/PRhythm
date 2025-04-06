@@ -117,6 +117,9 @@ class PromptBuilder:
         # Prepare language context
         language_name = get_language_name(language_code)
         
+        # Prepare extracted context if available
+        code_context = self._prepare_code_context(pr_data)
+        
         # Prepare diff excerpt
         diff_excerpt = self._prepare_diff_excerpt(pr_data)
         
@@ -135,6 +138,7 @@ class PromptBuilder:
             PR_LABELS=pr_labels,
             FILE_CHANGES_SUMMARY=file_changes_summary,
             ARCHITECTURE_CONTEXT=architecture_context,
+            CODE_CONTEXT=code_context,
             OUTPUT_LANGUAGE=language_name,
             OUTPUT_LANGUAGE_CODE=language_code,
             DIFF_EXCERPT=diff_excerpt
@@ -213,6 +217,70 @@ class PromptBuilder:
         
         return "The PR affects the following modules:\n" + "\n".join(module_summary)
     
+    def _prepare_code_context(self, pr_data: Dict[str, Any]) -> str:
+        """
+        Prepare extracted code context for the prompt
+        
+        Args:
+            pr_data: PR data
+            
+        Returns:
+            str: Code context
+        """
+        # Check if context is available
+        if 'context' not in pr_data:
+            return "No extracted code context available."
+        
+        context = pr_data.get('context', {})
+        
+        # Format context information
+        context_sections = []
+        
+        # Add code units if available
+        if 'code_units' in context:
+            context_sections.append("### Key Code Units")
+            for unit in context.get('code_units', [])[:5]:  # Limit to top 5
+                name = unit.get('name', 'Unknown')
+                unit_type = unit.get('type', 'Unknown')
+                file_path = unit.get('file_path', 'Unknown path')
+                
+                context_sections.append(f"#### {name} ({unit_type})")
+                context_sections.append(f"File: `{file_path}`")
+                
+                if 'description' in unit:
+                    context_sections.append(f"Description: {unit.get('description', '')}")
+                
+                if 'code' in unit:
+                    code = unit.get('code', '')
+                    context_sections.append("```")
+                    context_sections.append(code)
+                    context_sections.append("```")
+                
+                context_sections.append("")  # Empty line between units
+        
+        # Add relationships if available
+        if 'relationships' in context:
+            context_sections.append("### Code Relationships")
+            for rel in context.get('relationships', [])[:10]:  # Limit to top 10
+                source = rel.get('source', 'Unknown')
+                target = rel.get('target', 'Unknown')
+                rel_type = rel.get('type', 'Unknown')
+                
+                context_sections.append(f"- `{source}` {rel_type} `{target}`")
+            
+            context_sections.append("")
+        
+        # Add concise summary if available
+        if 'concise_summary' in context:
+            context_sections.append("### Context Summary")
+            context_sections.append(context.get('concise_summary', ''))
+        
+        # If no context sections were added, provide a message
+        if len(context_sections) == 0:
+            return "No structured code context available."
+        
+        return "\n".join(context_sections)
+    
     def _prepare_diff_excerpt(self, pr_data: Dict[str, Any], max_length: int = 2000) -> str:
         """
         Prepare an excerpt of the PR diff
@@ -224,6 +292,10 @@ class PromptBuilder:
         Returns:
             str: Diff excerpt
         """
+        # If we have extracted context, use a shorter diff excerpt
+        if 'context' in pr_data:
+            max_length = 1000
+        
         diff = pr_data.get('diff', '')
         
         if not diff:

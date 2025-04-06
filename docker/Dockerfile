@@ -12,7 +12,15 @@ RUN apt-get install -y --no-install-recommends \
     gnupg \
     ca-certificates \
     git \
-    jq
+    jq \
+    build-essential \
+    wget \
+    nodejs \
+    npm \
+    chromium \
+    libatk-bridge2.0-0 \
+    libgbm1 \
+    libasound2
 
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -21,6 +29,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     && apt-get update \
     && apt-get install -y gh
 
+# Install Node.js dependencies for Mermaid
+RUN npm install -g @mermaid-js/mermaid-cli
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 RUN pip install pqi -i https://mirrors.ustc.edu.cn/pypi/web/simple && \
@@ -28,10 +39,16 @@ RUN pip install pqi -i https://mirrors.ustc.edu.cn/pypi/web/simple && \
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
-RUN mkdir -p /app/output /app/analysis /app/repos
+RUN mkdir -p /app/output /app/analysis /app/repos /app/logs
+
+# Download NLTK data for text processing
+RUN python -m nltk.downloader punkt stopwords wordnet
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Default command
 CMD ["bash"]
