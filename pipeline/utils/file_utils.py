@@ -169,7 +169,7 @@ def generate_output_path(output_dir: Path, repo: str, pr_number: Union[int, str]
     
     # Create filename with language suffix if provided
     if language:
-        filename = f"pr_{pr_number}_{date_str}_{language}.{extension}"
+        filename = f"pr_{pr_number}_{language}_{date_str}.{extension}"
     else:
         filename = f"pr_{pr_number}_{date_str}.{extension}"
     
