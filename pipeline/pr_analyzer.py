@@ -109,7 +109,7 @@ class PRAnalyzer:
                 if save_diff:
                     diff = pr_data.get("diff", "")
                     if diff:
-                        diff_path = Path(analysis_dir) / f"pr_{pr_number}.patch"
+                        diff_path = generate_output_path(analysis_dir, repo, pr_number, "patch", None, True)
                         save_text(diff, diff_path)
                         result["diff_path"] = str(diff_path)
             

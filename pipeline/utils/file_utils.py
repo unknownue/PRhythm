@@ -141,7 +141,8 @@ def read_text(file_path: Union[str, Path]) -> str:
         raise
 
 def generate_output_path(output_dir: Path, repo: str, pr_number: Union[int, str], 
-                         extension: str = "json", language: Optional[str] = None) -> Path:
+                         extension: str = "json", language: Optional[str] = None,
+                         simple_name: bool = False) -> Path:
     """
     Generate a standardized output file path
     
@@ -151,6 +152,7 @@ def generate_output_path(output_dir: Path, repo: str, pr_number: Union[int, str]
         pr_number: PR number
         extension: File extension without dot (default: 'json')
         language: Language code for reports (optional)
+        simple_name: Whether to use simple naming format (pr_N.ext) without language and date
         
     Returns:
         Path: Generated file path
@@ -167,8 +169,10 @@ def generate_output_path(output_dir: Path, repo: str, pr_number: Union[int, str]
     repo_month_dir = output_dir / repo_name / month_dir
     ensure_directory(repo_month_dir)
     
-    # Create filename with language suffix if provided
-    if language:
+    # Create filename based on requested format
+    if simple_name:
+        filename = f"pr_{pr_number}.{extension}"
+    elif language:
         filename = f"pr_{pr_number}_{language}_{date_str}.{extension}"
     else:
         filename = f"pr_{pr_number}_{date_str}.{extension}"
