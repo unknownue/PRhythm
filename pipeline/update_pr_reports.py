@@ -338,8 +338,8 @@ def update_pr_reports():
             
             # 5. Get PR information
             logger.info("5. Getting PR detailed information...")
-            fetch_pr_info_script = project_root / "pipeline" / "fetch_pr_info.py"
-            returncode, stdout, stderr = run_script(fetch_pr_info_script, "--repo", repo, "--pr", pr_number)
+            fetch_pr_script = project_root / "pipeline" / "fetch_pr_info.py"
+            returncode, stdout, stderr = run_script(fetch_pr_script, "--repo", repo, "--pr", pr_number)
             
             if returncode != 0:
                 logger.error("Failed to fetch PR information: %s", stderr)
@@ -360,7 +360,7 @@ def update_pr_reports():
             for output_language in output_languages:
                 logger.info("6. Analyzing PR #%s and generating report in %s language using %s provider...", 
                            pr_number, output_language, default_provider)
-                analyze_pr_script = project_root / "pipeline" / "analyze_pr.py"
+                analyze_pr_script = project_root / "pipeline" / "run_pr_analysis.py"
                 
                 # Get analysis directory from config
                 analysis_base_dir = config.get('paths', {}).get('analysis_dir', './analysis')

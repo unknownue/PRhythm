@@ -22,7 +22,8 @@
       "deepseek": {
         "base_url": "https://api.deepseek.com",
         "api_key": "",
-        "model": "deepseek-chat"
+        "model": "deepseek-chat",
+        "max_tokens": 8192
       }
     }
   },
