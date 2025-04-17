@@ -12,6 +12,7 @@ import sys
 import argparse
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
+import time
 
 from providers.provider_factory import get_provider_from_config
 from utils.config_manager import config_manager
@@ -45,7 +46,7 @@ class PRAnalyzer:
     
     def analyze_pr(self, pr_data: Dict[str, Any], language: str = "en", 
                   output_dir: Optional[Path] = None, save_diff: bool = False,
-                  dry_run: bool = False) -> Dict[str, Any]:
+                  dry_run: bool = False, save_prompt: bool = False) -> Dict[str, Any]:
         """
         Analyze PR and generate report
         
@@ -55,6 +56,7 @@ class PRAnalyzer:
             output_dir: Output directory (optional, for PR data and diff)
             save_diff: Whether to save PR diff as a separate file
             dry_run: If True, don't actually call LLM API
+            save_prompt: Whether to save the LLM prompt
             
         Returns:
             dict: Analysis result
@@ -82,6 +84,19 @@ class PRAnalyzer:
             "language_name": get_language_name(language),
             "prompt": prompt
         }
+        
+        # Save prompt if requested
+        if save_prompt:
+            logs_dir = Path("logs")
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = int(time.time())
+            prompt_filename = f"prompt_{repo.replace('/', '-')}_{pr_number}_{language}_{timestamp}.log"
+            prompt_path = logs_dir / prompt_filename
+            try:
+                save_text(prompt, prompt_path)
+                logger.info(f"Saved LLM prompt to: {prompt_path}")
+            except Exception as e:
+                logger.error(f"Failed to save prompt to {prompt_path}: {e}")
         
         # In dry run mode, just return the prompt without calling API
         if dry_run:
@@ -122,7 +137,7 @@ class PRAnalyzer:
     
     def analyze_pr_from_file(self, json_file_path: Union[str, Path], language: str = "en",
                             output_dir: Optional[Path] = None, save_diff: bool = False,
-                            dry_run: bool = False) -> Dict[str, Any]:
+                            dry_run: bool = False, save_prompt: bool = False) -> Dict[str, Any]:
         """
         Analyze PR from a JSON file
         
@@ -132,6 +147,7 @@ class PRAnalyzer:
             output_dir: Output directory (optional)
             save_diff: Whether to save PR diff as a separate file
             dry_run: If True, don't actually call LLM API
+            save_prompt: Whether to save the LLM prompt
             
         Returns:
             dict: Analysis result
@@ -149,11 +165,11 @@ class PRAnalyzer:
             output_dir = file_path.parent
         
         # Analyze PR
-        return self.analyze_pr(pr_data, language, output_dir, save_diff, dry_run)
+        return self.analyze_pr(pr_data, language, output_dir, save_diff, dry_run, save_prompt)
     
     def analyze_pr_from_repo(self, repo: str, pr_number: Union[int, str], language: str = "en",
                             output_dir: Optional[Path] = None, save_diff: bool = False,
-                            dry_run: bool = False) -> Dict[str, Any]:
+                            dry_run: bool = False, save_prompt: bool = False) -> Dict[str, Any]:
         """
         Analyze PR from repository and PR number
         
@@ -164,6 +180,7 @@ class PRAnalyzer:
             output_dir: Output directory (optional)
             save_diff: Whether to save PR diff as a separate file
             dry_run: If True, don't actually call LLM API
+            save_prompt: Whether to save the LLM prompt
             
         Returns:
             dict: Analysis result
@@ -179,7 +196,7 @@ class PRAnalyzer:
             raise FileNotFoundError(f"PR JSON file not found for {repo}#{pr_number}")
         
         # Analyze PR from file
-        return self.analyze_pr_from_file(pr_json_file, language, output_dir, save_diff, dry_run)
+        return self.analyze_pr_from_file(pr_json_file, language, output_dir, save_diff, dry_run, save_prompt)
     
     def _find_pr_json_file(self, base_dir: Path, repo: str, pr_number: Union[int, str]) -> Optional[Path]:
         """
@@ -278,7 +295,8 @@ def main():
                 args.language, 
                 output_dir, 
                 args.save_diff,
-                args.dry_run
+                args.dry_run,
+                args.save_prompt
             )
         else:
             result = analyzer.analyze_pr_from_repo(
@@ -287,7 +305,8 @@ def main():
                 args.language, 
                 output_dir, 
                 args.save_diff,
-                args.dry_run
+                args.dry_run,
+                args.save_prompt
             )
         
         logger.info(f"Analysis completed successfully")

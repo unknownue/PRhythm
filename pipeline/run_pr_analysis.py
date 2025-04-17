@@ -50,6 +50,7 @@ def parse_arguments():
     parser.add_argument('--save-diff', action='store_true', help='Save PR diff as a separate file')
     parser.add_argument('--provider', help='LLM provider to use (overrides config)')
     parser.add_argument('--dry-run', action='store_true', help='Dry run mode (don\'t actually call LLM API)')
+    parser.add_argument('--save-prompt', action='store_true', help='Save the full LLM prompt to a file in the logs directory')
     
     args = parser.parse_args()
     
@@ -89,7 +90,8 @@ def main():
                 args.language, 
                 output_dir, 
                 args.save_diff,
-                args.dry_run
+                args.dry_run,
+                args.save_prompt
             )
         else:
             result = analyzer.analyze_pr_from_repo(
@@ -98,7 +100,8 @@ def main():
                 args.language, 
                 output_dir, 
                 args.save_diff,
-                args.dry_run
+                args.dry_run,
+                args.save_prompt
             )
         
         logger.info(f"Analysis completed successfully")

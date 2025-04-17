@@ -29,7 +29,7 @@ The main operational flow of PRhythm involves several stages executed sequential
 *   **`pr_fetcher.py`**: Contains logic to query GitHub for merged PRs within a specific timeframe. Uses `github_client.py`.
 *   **`fetch_pr_info.py`**: Fetches detailed data for a specific PR (metadata, diff, files) and saves it as JSON. Uses `github_client.py`.
 *   **`github_client.py`**: A dedicated client for interacting with the GitHub GraphQL API to fetch repository and PR data.
-*   **`analyze_pr.py`**: CLI entry point for analyzing a specific PR (using its JSON data). Calls `pr_analyzer.py`.
+*   **`run_pr_analysis.py`**: CLI entry point for analyzing a specific PR (using its JSON data). Calls `pr_analyzer.py`.
 *   **`pr_analyzer.py`**: Core analysis class. Manages prompt building, LLM interaction, and saving results. Uses `prompt_builder.py` and `providers/`.
 *   **`prompt_builder.py`**: Constructs the detailed prompt for the LLM using the `prompt/analyze_pr.prompt` template and data from the PR JSON file.
 *   **`report_generator.py`**: Saves the generated analysis text to Markdown files.

@@ -43,6 +43,7 @@ Examples:
     parser.add_argument('--language', required=True, help='Language code (e.g., zh-cn, en)')
     parser.add_argument('--repo', required=True, help='Repository name in format "owner/repo" (e.g., "bevyengine/bevy")')
     parser.add_argument('--dry-run', action='store_true', help='Run in dry-run mode without making changes')
+    parser.add_argument('--save-prompt', action='store_true', help='Save the full LLM prompt to a file in the logs directory')
     
     args = parser.parse_args()
     
@@ -53,6 +54,10 @@ Examples:
     # Add dry-run flag if specified
     if args.dry_run:
         analyze_cmd += ' --dry-run'
+    
+    # Add save-prompt flag if specified
+    if args.save_prompt:
+        analyze_cmd += ' --save-prompt'
     
     # Execute commands
     print("Fetching PR information...")
