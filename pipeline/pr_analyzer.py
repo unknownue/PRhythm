@@ -76,6 +76,11 @@ class PRAnalyzer:
         # Build prompt
         prompt = self.prompt_builder.build_pr_analysis_prompt(pr_data, language)
         
+        # Append full code diff to the prompt
+        code_diff = pr_data.get("diff", "")
+        if code_diff:
+            prompt += f"\n\n# Full Code Diff\n{code_diff}"
+        
         # Prepare result structure
         result = {
             "repository": repo,
