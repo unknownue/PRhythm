@@ -6,7 +6,11 @@ Example usage of the PRhythm GitHub PR Analysis tool.
 import asyncio
 import json
 import os
+from dotenv import load_dotenv
 from src.pr_analysis import analyze_pr, PRAnalysisConfiguration, AnalysisDepth, MockLLMMode
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 async def example_basic_analysis():
@@ -14,9 +18,9 @@ async def example_basic_analysis():
     
     print("=== Basic PR Analysis Example ===")
     
-    # Example repository and PR (you can change these)
+    # Example repository and PR (using a real PR for demonstration)
     repo_url = "https://github.com/microsoft/TypeScript"
-    pr_number = 50000  # Change to a real PR number
+    pr_number = 62113  # Real PR for testing
     
     try:
         # Configure to use mock LLM for demonstration
@@ -113,7 +117,7 @@ async def example_quick_analysis():
     print("\n=== Quick Analysis Example (CI/CD) ===")
     
     repo_url = "https://github.com/facebook/react"
-    pr_number = 25000  # Change to a real PR number
+    pr_number = 33999  # Real PR for testing
     
     try:
         # Quick analysis with minimal configuration

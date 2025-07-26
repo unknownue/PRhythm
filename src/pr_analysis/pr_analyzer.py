@@ -36,7 +36,12 @@ async def initialize_pr_analysis(state: PRAnalysisState, config: RunnableConfig)
     """Initialize PR analysis by fetching basic PR and repository data."""
     
     configurable = PRAnalysisConfiguration.from_runnable_config(config)
-    analysis_request = state.analysis_request
+    
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        analysis_request = state.get("analysis_request")
+    else:
+        analysis_request = state.analysis_request
     
     try:
         async with GitHubAPIClient() as client:
@@ -84,7 +89,14 @@ async def execute_agents(state: PRAnalysisState, config: RunnableConfig) -> Comm
     """Execute specialized agents based on supervisor plan."""
     
     configurable = PRAnalysisConfiguration.from_runnable_config(config)
-    raw_data = state.raw_analysis_data
+    
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        raw_data = state.get("raw_analysis_data", {})
+        analysis_request = state.get("analysis_request")
+    else:
+        raw_data = state.raw_analysis_data
+        analysis_request = state.analysis_request
     
     if raw_data.get("initialization_failed"):
         return Command(goto="finalize_analysis")
@@ -99,7 +111,7 @@ async def execute_agents(state: PRAnalysisState, config: RunnableConfig) -> Comm
         
         # Repository Analyzer
         repo_analyzer_state = RepositoryAnalyzerState(
-            repository_url=state.analysis_request.repository_url,
+            repository_url=analysis_request.repository_url,
             analyzer_messages=[],
             repository_context=repo_context
         )
@@ -119,8 +131,8 @@ async def execute_agents(state: PRAnalysisState, config: RunnableConfig) -> Comm
         
         # Context Gatherer (depends on diff analysis)
         context_gatherer_state = ContextGathererState(
-            repository_url=state.analysis_request.repository_url,
-            pr_number=state.analysis_request.pr_number,
+            repository_url=analysis_request.repository_url,
+            pr_number=analysis_request.pr_number,
             diff_analysis=diff_result,
             gatherer_messages=[]
         )
@@ -129,7 +141,7 @@ async def execute_agents(state: PRAnalysisState, config: RunnableConfig) -> Comm
         
         # Report Generator (depends on all previous analyses)
         report_generator_state = ReportGeneratorState(
-            analysis_request=state.analysis_request,
+            analysis_request=analysis_request,
             repository_analysis=repo_result,
             diff_analysis=diff_result,
             context_analysis=context_result,
@@ -167,17 +179,29 @@ async def finalize_analysis(state: PRAnalysisState, config: RunnableConfig):
     
     configurable = PRAnalysisConfiguration.from_runnable_config(config)
     
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        raw_analysis_data = state.get("raw_analysis_data", {})
+        analysis_report = state.get("analysis_report")
+        analysis_request = state.get("analysis_request")
+        completed_agents = state.get("completed_agents", [])
+    else:
+        raw_analysis_data = state.raw_analysis_data
+        analysis_report = state.analysis_report
+        analysis_request = state.analysis_request
+        completed_agents = state.completed_agents
+    
     # Create final analysis result
-    if state.analysis_report:
+    if analysis_report:
         # Successful analysis
         analysis_result = PRAnalysisResult(
-            pr=state.raw_analysis_data.get("pr_info", {}),
-            repository_context=state.raw_analysis_data.get("repository_context", {}),
-            diff=state.raw_analysis_data.get("pr_diff", {}),
-            analysis_report=state.analysis_report.model_dump_json(),
+            pr=raw_analysis_data.get("pr_info", {}),
+            repository_context=raw_analysis_data.get("repository_context", {}),
+            diff=raw_analysis_data.get("pr_diff", {}),
+            analysis_report=analysis_report.model_dump_json() if analysis_report else "{}",
             metadata={
-                "analysis_depth": state.analysis_request.analysis_depth,
-                "agents_completed": state.completed_agents,
+                "analysis_depth": analysis_request.analysis_depth if analysis_request else "standard",
+                "agents_completed": completed_agents,
                 "analysis_timestamp": datetime.now().isoformat(),
                 "configuration": {
                     "mock_llm_mode": configurable.mock_llm_mode.value,
@@ -194,7 +218,7 @@ async def finalize_analysis(state: PRAnalysisState, config: RunnableConfig):
             diff={},
             analysis_report=json.dumps({
                 "error": "Analysis failed",
-                "details": state.raw_analysis_data
+                "details": raw_analysis_data
             }),
             metadata={
                 "analysis_failed": True,
@@ -336,7 +360,7 @@ def build_pr_analysis_graph():
     builder.add_edge(START, "initialize_pr_analysis")
     builder.add_conditional_edges(
         "initialize_pr_analysis",
-        lambda state: "pr_supervisor" if not state.raw_analysis_data.get("initialization_failed") else "finalize_analysis"
+        lambda state: "pr_supervisor" if not (state.get("raw_analysis_data", {}) if isinstance(state, dict) else state.raw_analysis_data).get("initialization_failed") else "finalize_analysis"
     )
     builder.add_conditional_edges(
         "pr_supervisor",
@@ -345,7 +369,7 @@ def build_pr_analysis_graph():
     )
     builder.add_conditional_edges(
         "supervisor_tools", 
-        lambda state: "execute_agents" if state.analysis_plan else "pr_supervisor"
+        lambda state: "execute_agents" if (state.get("analysis_plan") if isinstance(state, dict) else state.analysis_plan) else "pr_supervisor"
     )
     builder.add_edge("execute_agents", "finalize_analysis")
     builder.add_edge("finalize_analysis", END)

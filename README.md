@@ -1,8 +1,34 @@
-# Open Deep Research
+# PRhythm - GitHub PR Analysis Tool
 
-<img width="1388" height="298" alt="full_diagram" src="https://github.com/user-attachments/assets/12a2371b-8be2-4219-9b48-90503eb43c69" />
+A sophisticated multi-agent system for analyzing GitHub Pull Requests using LangChain and LangGraph, built on the Open Deep Research framework.
 
-Deep research has broken out as one of the most popular agent applications. This is a simple, configurable, fully open source deep research agent that works across many model providers, search tools, and MCP servers. 
+## 🎯 Quick Start
+
+### Prerequisites
+- **GitHub Token** configured in `.env` file
+- **Python 3.9+** and **uv** package manager
+
+### Installation
+```bash
+# Clone and setup
+git clone <repository-url>
+cd PRhythm
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+
+# Configure GitHub token in .env file
+echo "GITHUB_TOKEN=your_github_token_here" > .env
+```
+
+### Usage
+```bash
+# Run example analysis
+python example_pr_analysis.py
+
+# Use CLI
+python -m src.pr_analysis.cli https://github.com/owner/repo 123
+``` 
 
 * Read more in our [blog](https://blog.langchain.com/open-deep-research/) 
 * See our [video](https://www.youtube.com/watch?v=agGiWUpxkhg) for a quick overview

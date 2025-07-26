@@ -76,19 +76,30 @@ async def pr_supervisor(state: SupervisorState, config: RunnableConfig) -> Comma
     
     configurable = PRAnalysisConfiguration.from_runnable_config(config)
     
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        analysis_request = state.get("analysis_request")
+        supervisor_messages = state.get("supervisor_messages", [])
+    else:
+        analysis_request = state.analysis_request
+        supervisor_messages = state.supervisor_messages
+    
     # Check if mock LLM should be used
     mock_service = MockLLMService(configurable.mock_llm_mode, configurable.mock_response_delay_seconds)
     if mock_service.should_use_mock_for_agent("pr_supervisor"):
         # Use mock response
         mock_response = await mock_service.coordinate_analysis(
-            json.dumps(state.analysis_request.model_dump())
+            json.dumps(analysis_request.model_dump()) if analysis_request else "{}"
         )
+        
+        coordination_iterations = (state.get("coordination_iterations", 0) if isinstance(state, dict) 
+                                   else state.coordination_iterations) + 1
         
         return Command(
             goto="supervisor_tools",
             update={
                 "supervisor_messages": [AIMessage(content=mock_response)],
-                "coordination_iterations": state.coordination_iterations + 1
+                "coordination_iterations": coordination_iterations
             }
         )
     
@@ -104,25 +115,31 @@ async def pr_supervisor(state: SupervisorState, config: RunnableConfig) -> Comma
     ).with_config(model_config)
     
     # Prepare system prompt
+    analysis_depth = (analysis_request.analysis_depth if analysis_request 
+                     else "standard")
     system_prompt = SUPERVISOR_SYSTEM_PROMPT.format(
         date="2024-01-15",  # TODO: Use actual date
-        analysis_depth=state.analysis_request.analysis_depth,
+        analysis_depth=analysis_depth,
         max_concurrent_agents=configurable.max_concurrent_agents
     )
     
     # Prepare messages
-    supervisor_messages = state.supervisor_messages or []
+    supervisor_messages = supervisor_messages or []
     
     # Create analysis request summary for the supervisor
-    analysis_summary = f"""
+    # Create analysis request summary
+    if analysis_request:
+        analysis_summary = f"""
 PR Analysis Request:
-- Repository: {state.analysis_request.repository_url}
-- PR Number: {state.analysis_request.pr_number}
-- Analysis Depth: {state.analysis_request.analysis_depth}
-- Include Context: {state.analysis_request.include_context}
+- Repository: {analysis_request.repository_url}
+- PR Number: {analysis_request.pr_number}
+- Analysis Depth: {analysis_request.analysis_depth}
+- Include Context: {analysis_request.include_context}
 
 Please create a comprehensive analysis plan for this PR that coordinates the available specialized agents effectively.
 """
+    else:
+        analysis_summary = "No analysis request available. Please create a general analysis plan."
     
     messages = [
         SystemMessage(content=system_prompt),
@@ -141,7 +158,8 @@ Please create a comprehensive analysis plan for this PR that coordinates the ava
                     assignment.agent_name: assignment.tasks 
                     for assignment in response.agent_assignments
                 },
-                "coordination_iterations": state.coordination_iterations + 1
+                "coordination_iterations": (state.get("coordination_iterations", 0) if isinstance(state, dict) 
+                                           else state.coordination_iterations) + 1
             }
         )
         
@@ -151,7 +169,8 @@ Please create a comprehensive analysis plan for this PR that coordinates the ava
             goto="supervisor_tools",
             update={
                 "supervisor_messages": [AIMessage(content=error_message)],
-                "coordination_iterations": state.coordination_iterations + 1
+                "coordination_iterations": (state.get("coordination_iterations", 0) if isinstance(state, dict) 
+                                           else state.coordination_iterations) + 1
             }
         )
 
@@ -160,7 +179,16 @@ async def supervisor_tools(state: SupervisorState, config: RunnableConfig) -> Co
     """Process supervisor decisions and coordinate agent execution."""
     
     configurable = PRAnalysisConfiguration.from_runnable_config(config)
-    supervisor_messages = state.supervisor_messages or []
+    
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        supervisor_messages = state.get("supervisor_messages", [])
+        coordination_iterations = state.get("coordination_iterations", 0)
+        analysis_plan = state.get("analysis_plan")
+    else:
+        supervisor_messages = state.supervisor_messages or []
+        coordination_iterations = state.coordination_iterations
+        analysis_plan = state.analysis_plan
     
     if not supervisor_messages:
         return Command(goto="__end__", update={"error": "No supervisor messages to process"})
@@ -168,16 +196,18 @@ async def supervisor_tools(state: SupervisorState, config: RunnableConfig) -> Co
     last_message = supervisor_messages[-1]
     
     # Check if we've exceeded maximum coordination iterations
-    if state.coordination_iterations >= 3:
+    if coordination_iterations >= 3:
         return Command(
             goto="execute_agents",
             update={
-                "analysis_plan": state.analysis_plan or {
+                "analysis_plan": analysis_plan or {
                     "workflow_description": "Standard PR analysis workflow",
                     "agent_sequence": ["repository_analyzer", "diff_analyzer", "context_gatherer", "report_generator"],
                     "parallel_agents": [["repository_analyzer", "diff_analyzer"], ["context_gatherer"], ["report_generator"]],
                     "estimated_duration_minutes": 10,
-                    "analysis_depth": state.analysis_request.analysis_depth
+                    "analysis_depth": (state.get("analysis_request", {}).get("analysis_depth", "standard") 
+                                     if isinstance(state, dict) 
+                                     else (state.analysis_request.analysis_depth if hasattr(state, 'analysis_request') and state.analysis_request else "standard"))
                 }
             }
         )
@@ -223,20 +253,29 @@ async def supervisor_tools(state: SupervisorState, config: RunnableConfig) -> Co
 def should_continue_coordination(state: SupervisorState) -> str:
     """Determine if coordination should continue."""
     
-    if state.coordination_iterations >= 3:
+    # Handle both dict and state object
+    if isinstance(state, dict):
+        coordination_iterations = state.get("coordination_iterations", 0)
+        analysis_plan = state.get("analysis_plan")
+    else:
+        coordination_iterations = state.coordination_iterations
+        analysis_plan = state.analysis_plan
+    
+    if coordination_iterations >= 3:
         return "supervisor_tools"
     
-    if state.analysis_plan:
+    if analysis_plan:
         return "supervisor_tools"
     
-    supervisor_messages = state.supervisor_messages or []
+    supervisor_messages = (state.get("supervisor_messages", []) if isinstance(state, dict) 
+                          else state.supervisor_messages) or []
     if not supervisor_messages:
-        return "pr_supervisor"
+        return "supervisor_tools"  # Need to generate analysis plan
     
     last_message = supervisor_messages[-1]
     
     # Check if the last message indicates completion
     if hasattr(last_message, 'content') and "execute_agents" in str(last_message.content).lower():
-        return "supervisor_tools"
+        return "execute_agents"
     
-    return "pr_supervisor"
+    return "supervisor_tools"  # Continue coordination through tools
