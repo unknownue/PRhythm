@@ -6,3 +6,5 @@
 
 # Workspaces - contains cloned repositories and temporary files
 /workspaces/
+
+__pycache__
