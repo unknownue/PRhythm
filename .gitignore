@@ -1,0 +1,8 @@
+
+/.venv
+/.env
+
+/QWEN.md
+
+# Workspaces - contains cloned repositories and temporary files
+/workspaces/

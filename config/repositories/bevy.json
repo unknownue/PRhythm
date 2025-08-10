@@ -1,0 +1,61 @@
+{
+  "repository": {
+    "name": "bevy",
+    "full_name": "bevyengine/bevy",
+    "github_url": "https://github.com/bevyengine/bevy/",
+    "clone_url": "https://github.com/bevyengine/bevy/",
+    "default_branch": "main",
+    "enabled": true,
+    "description": "Auto-generated configuration for bevy"
+  },
+  "analysis": {
+    "trigger": {
+      "on_pr_merged": true,
+      "on_pr_closed": false,
+      "specific_branches": ["main", "develop"],
+      "exclude_branches": ["feature/*", "hotfix/*"]
+    },
+    "schemes": {
+      "default": "general_review",
+      "fallback": "general_review",
+      "conditions": [
+        {
+          "description": "Security review for security-labeled PRs",
+          "condition": {
+            "type": "label_contains",
+            "value": "security"
+          },
+          "scheme": "security_audit",
+          "priority": "high"
+        },
+        {
+          "description": "Performance check for large PRs",
+          "condition": {
+            "type": "and",
+            "conditions": [
+              {
+                "type": "files_changed",
+                "operator": ">",
+                "value": 20
+              },
+              {
+                "type": "lines_changed",
+                "operator": ">",
+                "value": 500
+              }
+            ]
+          },
+          "scheme": "performance_check",
+          "priority": "medium"
+        }
+      ]
+    }
+  },
+  "workspace": {
+    "previous_dir": "workspaces/bevy/repo-previous",
+    "merged_dir": "workspaces/bevy/repo-merged",
+    "reports_dir": "workspaces/bevy/reports",
+    "temp_dir": "workspaces/bevy/temp",
+    "cleanup_temp_after_hours": 24
+  }
+}

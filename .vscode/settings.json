@@ -1,0 +1,15 @@
+{
+    "editor.wordWrap": "on",
+    "git.enabled": true,
+    "git.decorations.enabled": false,
+    "git.blame.statusBarItem.enabled": false,
+    
+    "workbench.activityBar.location": "default",
+    "workbench.activityBar.orientation": "vertical",
+    "workbench.editor.wrapTabs": true,
+    "workbench.editor.openSideBySideDirection": "down",
+    
+    "files.exclude": {
+        "**/__pycache__": true,
+    }
+}
