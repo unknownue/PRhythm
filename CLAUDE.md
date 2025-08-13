@@ -16,4 +16,4 @@ PRhythm is a GitHub PR analysis system that generates automated analysis reports
 - Include critical processing details in comments
 
 ### Development Workflow
-- Run all python command using local venv environment
+- Run all python command using local .venv environment
