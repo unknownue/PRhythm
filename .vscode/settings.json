@@ -7,7 +7,6 @@
     "workbench.activityBar.location": "default",
     "workbench.activityBar.orientation": "vertical",
     "workbench.editor.wrapTabs": true,
-    "workbench.editor.openSideBySideDirection": "down",
     
     "files.exclude": {
         "**/__pycache__": true,

@@ -151,6 +151,22 @@ class AgentConfiguration(BaseModel):
         default=True,
         description="Enable repository-specific custom schemes"
     )
+    
+    # Ollama Server Configuration
+    ollama_server_base_url: Optional[str] = Field(
+        default=None,
+        description="Base URL for Ollama server (e.g., http://localhost:11434)"
+    )
+    
+    ollama_server_api_key: Optional[str] = Field(
+        default=None,
+        description="API key for Ollama server authentication"
+    )
+    
+    ollama_server_model: Optional[str] = Field(
+        default=None,
+        description="Model name for Ollama server"
+    )
 
     @classmethod
     def from_runnable_config(
@@ -163,7 +179,12 @@ class AgentConfiguration(BaseModel):
         # Get values from environment variables or configurable dict
         values: Dict[str, Any] = {}
         for field_name in field_names:
-            env_var_name = field_name.upper()
+            # Special handling for Ollama server configuration with PUB_ prefix
+            if field_name.startswith("ollama_server_"):
+                env_var_name = f"PUB_{field_name.upper()}"
+            else:
+                env_var_name = field_name.upper()
+            
             env_value = os.environ.get(env_var_name)
             config_value = configurable.get(field_name)
             
@@ -210,16 +231,28 @@ class AgentConfiguration(BaseModel):
                 return api_keys.get("ANTHROPIC_API_KEY")
             elif model_name_lower.startswith(("google:", "gemini:")):
                 return api_keys.get("GOOGLE_API_KEY")
+            elif model_name_lower.startswith("ollama:"):
+                return api_keys.get("OLLAMA_SERVER_API_KEY", "")
         else:
-            # Get from environment variables
+            # Get from environment variables with PUB_ prefix
             if model_name_lower.startswith("openai:"):
-                return os.getenv("OPENAI_API_KEY")
+                return os.getenv("PUB_OPENAI_API_KEY")
             elif model_name_lower.startswith("anthropic:"):
-                return os.getenv("ANTHROPIC_API_KEY")
+                return os.getenv("PUB_ANTHROPIC_API_KEY")
             elif model_name_lower.startswith(("google:", "gemini:")):
-                return os.getenv("GOOGLE_API_KEY")
+                return os.getenv("PUB_GOOGLE_API_KEY")
+            elif model_name_lower.startswith("ollama:"):
+                return os.getenv("PUB_OLLAMA_SERVER_API_KEY", "")  # Default to empty string for Ollama
         
         return None
+
+    def get_ollama_server_config(self) -> Dict[str, Optional[str]]:
+        """Get Ollama server configuration."""
+        return {
+            "base_url": self.ollama_server_base_url,
+            "api_key": self.ollama_server_api_key,
+            "model": self.ollama_server_model
+        }
 
     class Config:
         """Pydantic configuration."""

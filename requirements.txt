@@ -1,2 +1,7 @@
 requests>=2.31.0
 python-dotenv>=1.0.0
+langchain>=0.3.27
+langchain-core>=0.3.74
+langchain-openai>=0.3.30
+langchain-ollama>=0.3.6
+pydantic>=2.11.7
