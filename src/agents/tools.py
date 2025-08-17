@@ -52,6 +52,32 @@ class DirectoryInfo(BaseModel):
 
 
 ###################
+# Helper Functions
+###################
+
+def _safe_get_author(pr_data: Dict) -> str:
+    """Safely extract author information from PR data."""
+    try:
+        # Try author field first
+        author_info = pr_data.get("author")
+        if isinstance(author_info, dict):
+            return author_info.get("login", "unknown")
+        elif isinstance(author_info, str):
+            return author_info
+        
+        # Fall back to user field
+        user_info = pr_data.get("user")
+        if isinstance(user_info, dict):
+            return user_info.get("login", "unknown")
+        elif isinstance(user_info, str):
+            return user_info
+        
+        return "unknown"
+    except Exception:
+        return "unknown"
+
+
+###################
 # Git Tools
 ###################
 
@@ -447,7 +473,7 @@ async def analyze_pr_metadata(
             "pr_number": pr_data.get("number"),
             "title": pr_data.get("title", ""),
             "description": pr_data.get("body", ""),
-            "author": pr_data.get("user", {}).get("login", "unknown"),
+            "author": _safe_get_author(pr_data),
             "state": pr_data.get("state", "unknown"),
             "created_at": pr_data.get("created_at"),
             "updated_at": pr_data.get("updated_at"),
@@ -462,13 +488,17 @@ async def analyze_pr_metadata(
         # Extract labels
         labels = []
         for label in pr_data.get("labels", []):
-            labels.append(label.get("name", ""))
+            if isinstance(label, str):
+                labels.append(label)
+            else:
+                labels.append(label.get("name", ""))
         analysis["labels"] = labels
         
         # Extract file change statistics
-        analysis["files_changed"] = pr_data.get("changed_files", 0)
-        analysis["additions"] = pr_data.get("additions", 0)
-        analysis["deletions"] = pr_data.get("deletions", 0)
+        statistics = pr_data.get("statistics", {})
+        analysis["files_changed"] = statistics.get("files_changed", pr_data.get("changed_files", 0))
+        analysis["additions"] = statistics.get("lines_added", pr_data.get("additions", 0))
+        analysis["deletions"] = statistics.get("lines_deleted", pr_data.get("deletions", 0))
         analysis["total_changes"] = analysis["additions"] + analysis["deletions"]
         
         # Extract reviewer information

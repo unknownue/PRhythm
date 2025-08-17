@@ -38,7 +38,7 @@ class AgentConfiguration(BaseModel):
     
     # Agent Configuration
     scheme_selector_model: str = Field(
-        default="openai:gpt-4.1",
+        default="ollama:hopephoto/Qwen3-4B-Instruct-2507_q8:latest",
         description="Model for scheme selection agent"
     )
     
@@ -48,7 +48,7 @@ class AgentConfiguration(BaseModel):
     )
     
     data_collector_model: str = Field(
-        default="openai:gpt-4.1",
+        default="ollama:hopephoto/Qwen3-4B-Instruct-2507_q8:latest",
         description="Model for data collection agents"
     )
     
@@ -58,7 +58,7 @@ class AgentConfiguration(BaseModel):
     )
     
     analysis_model: str = Field(
-        default="openai:gpt-4.1",
+        default="ollama:hopephoto/Qwen3-4B-Instruct-2507_q8:latest",
         description="Model for main PR analysis"
     )
     
@@ -68,7 +68,7 @@ class AgentConfiguration(BaseModel):
     )
     
     report_processor_model: str = Field(
-        default="openai:gpt-4.1",
+        default="ollama:hopephoto/Qwen3-4B-Instruct-2507_q8:latest",
         description="Model for report processing"
     )
     
@@ -154,17 +154,17 @@ class AgentConfiguration(BaseModel):
     
     # Ollama Server Configuration
     ollama_server_base_url: Optional[str] = Field(
-        default=None,
+        default="http://192.168.50.209:8090",
         description="Base URL for Ollama server (e.g., http://localhost:11434)"
     )
     
     ollama_server_api_key: Optional[str] = Field(
-        default=None,
+        default="",
         description="API key for Ollama server authentication"
     )
     
     ollama_server_model: Optional[str] = Field(
-        default=None,
+        default="hopephoto/Qwen3-4B-Instruct-2507_q8:latest",
         description="Model name for Ollama server"
     )
 

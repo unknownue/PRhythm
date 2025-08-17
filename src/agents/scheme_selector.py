@@ -1,6 +1,8 @@
 """Agent-1: Scheme Selection Agent for PRhythm."""
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Dict, List, Literal, Optional
 
 from langchain.chat_models import init_chat_model
@@ -18,6 +20,36 @@ from .tools import analyze_pr_metadata
 configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key"),
 )
+
+
+def _load_prompt_template(template_name: str) -> str:
+    """Load prompt template from file.
+    
+    Args:
+        template_name: Name of the template file (without .txt extension)
+        
+    Returns:
+        Template content as string
+    """
+    # Get the project root directory (assumes this file is in src/agents/)
+    current_file = Path(__file__)
+    project_root = current_file.parent.parent.parent
+    prompt_file = project_root / "prompts" / f"{template_name}.txt"
+    
+    try:
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        # Fallback to default prompt if file not found
+        if template_name == "scheme_selector_system":
+            return """You are a PR analysis scheme selector for the PRhythm system.
+For now, always select "general_review" as the analysis scheme regardless of the PR characteristics.
+This is a simplified version while the system is being developed.
+Please respond with "general_review" and provide a brief explanation for the selection."""
+        elif template_name == "scheme_selector_human":
+            return """Please select "general_review" as the analysis scheme and provide a brief explanation."""
+        else:
+            return "Template not found."
 
 
 async def scheme_selector_agent(
@@ -44,75 +76,101 @@ async def scheme_selector_agent(
     # Get agent configuration
     agent_config = AgentConfiguration.from_runnable_config(config)
     
-    # Step 2: Analyze PR metadata using the analysis tool
-    try:
-        pr_analysis = await analyze_pr_metadata(pr_data, config)
-    except Exception as e:
-        # If metadata analysis fails, use basic PR data
-        pr_analysis = {
-            "pr_number": pr_data.get("number"),
-            "title": pr_data.get("title", ""),
-            "labels": [label.get("name", "") for label in pr_data.get("labels", [])],
-            "files_changed": pr_data.get("changed_files", 0),
-            "total_changes": pr_data.get("additions", 0) + pr_data.get("deletions", 0)
-        }
+    # Step 2: Use simplified PR data analysis (skip tool call to avoid hanging)
+    labels = []
+    for label in pr_data.get("labels", []):
+        if isinstance(label, str):
+            labels.append(label)
+        else:
+            labels.append(label.get("name", ""))
     
-    # Step 3: Configure the scheme selection model
-    model_config = {
-        "model": agent_config.scheme_selector_model,
-        "max_tokens": agent_config.scheme_selector_max_tokens,
-        "api_key": agent_config.get_api_key_for_model(agent_config.scheme_selector_model, config),
-        "tags": ["langsmith:nostream"]
+    statistics = pr_data.get("statistics", {})
+    pr_analysis = {
+        "pr_number": pr_data.get("number"),
+        "title": pr_data.get("title", ""),
+        "labels": labels,
+        "files_changed": statistics.get("files_changed", pr_data.get("changed_files", 0)),
+        "total_changes": statistics.get("lines_changed", pr_data.get("additions", 0) + pr_data.get("deletions", 0))
     }
     
-    # Configure model with structured output and retry logic
-    selection_model = (
-        configurable_model
-        .with_structured_output(SchemeSelection)
-        .with_retry(stop_after_attempt=agent_config.max_structured_output_retries)
-        .with_config(model_config)
+    
+    # Step 3: Configure the scheme selection model
+    model_name = agent_config.scheme_selector_model
+    
+    # Special handling for Ollama models
+    if model_name.startswith("ollama:"):
+        from langchain_ollama import ChatOllama
+        
+        ollama_config = agent_config.get_ollama_server_config()
+        base_url = ollama_config.get("base_url")
+        actual_model = ollama_config.get("model")
+        
+        # Use simple ChatOllama without structured output for compatibility
+        selection_model = ChatOllama(
+            model=actual_model,
+            base_url=base_url,
+            timeout=120
+        )
+    else:
+        model_config = {
+            "model": model_name,
+            "max_tokens": agent_config.scheme_selector_max_tokens,
+            "api_key": agent_config.get_api_key_for_model(model_name, config),
+            "tags": ["langsmith:nostream"]
+        }
+        
+        # Configure model with structured output and retry logic
+        selection_model = (
+            configurable_model
+            .with_structured_output(SchemeSelection)
+            .with_retry(stop_after_attempt=agent_config.max_structured_output_retries)
+            .with_config(model_config)
+        )
+    
+    # Step 4: Build analysis prompt from templates
+    system_template = _load_prompt_template("scheme_selector_system")
+    
+    # Format system prompt with available data
+    available_schemes_list = chr(10).join([f"- {str(scheme)}" for scheme in available_schemes])
+    default_scheme = repository_config.get('analysis', {}).get('schemes', {}).get('default', 'general_review')
+    
+    system_prompt = system_template.format(
+        available_schemes=available_schemes_list,
+        default_scheme=default_scheme
     )
     
-    # Step 4: Build analysis prompt
-    system_prompt = f"""You are a PR analysis scheme selector for the PRhythm system.
-
-Your task is to analyze the provided PR data and select the most appropriate analysis scheme
-from the available options. Consider the following factors:
-
-1. PR Labels: Security, performance, documentation, breaking-change, etc.
-2. PR Size: Number of files changed and total line changes
-3. File Types: Programming languages and file extensions involved
-4. PR Description: Keywords and context from title and description
-5. Repository-specific Rules: Custom conditions defined in repository configuration
-
-Available Schemes:
-{chr(10).join([f"- {scheme}" for scheme in available_schemes])}
-
-Repository Configuration:
-- Default Scheme: {repository_config.get('analysis', {}).get('schemes', {}).get('default', 'general_review')}
-- Custom Conditions: {len(repository_config.get('analysis', {}).get('schemes', {}).get('conditions', []))} rules defined
-
-Select the scheme that best matches the PR characteristics and explain your reasoning.
-Consider confidence in your selection - higher confidence for clear matches, lower for ambiguous cases.
-"""
-    
     # Create the analysis prompt with PR data
-    human_prompt = f"""Analyze this PR and select the appropriate analysis scheme:
-
-PR Information:
-- Number: #{pr_analysis.get('pr_number', 'unknown')}
-- Title: {pr_analysis.get('title', 'No title')}
-- Author: {pr_analysis.get('author', 'unknown')}
-- Labels: {', '.join(pr_analysis.get('labels', [])) or 'None'}
-- Files Changed: {pr_analysis.get('files_changed', 0)}
-- Total Changes: {pr_analysis.get('total_changes', 0)} lines
-- Size Category: {pr_analysis.get('size_category', 'unknown')}
-- Base Branch: {pr_analysis.get('base_branch', 'unknown')}
-
-PR Description Preview:
-{pr_analysis.get('description', 'No description')[:500]}{'...' if len(pr_analysis.get('description', '')) > 500 else ''}
-
-Please select the most appropriate analysis scheme and provide your reasoning."""
+    # Safely handle labels to ensure they are strings
+    labels_str = ', '.join(str(label) for label in pr_analysis.get('labels', [])) or 'None'
+    
+    # Safely get author information
+    author_info = pr_data.get('author', {})
+    if isinstance(author_info, dict):
+        author = author_info.get('login', 'unknown')
+    else:
+        author = str(author_info) if author_info else 'unknown'
+    
+    # Safely get description
+    description = pr_data.get('description') or pr_data.get('body', 'No description')
+    if description:
+        description_preview = description[:500]
+        if len(description) > 500:
+            description_preview += '...'
+    else:
+        description_preview = 'No description'
+    
+    # Load and format human prompt template
+    human_template = _load_prompt_template("scheme_selector_human")
+    
+    human_prompt = human_template.format(
+        pr_number=pr_analysis.get('pr_number', 'unknown'),
+        title=pr_analysis.get('title', 'No title'),
+        author=author,
+        labels=labels_str,
+        files_changed=pr_analysis.get('files_changed', 0),
+        total_changes=pr_analysis.get('total_changes', 0),
+        description_preview=description_preview
+    )
     
     # Step 5: Execute scheme selection
     messages = [
@@ -121,29 +179,55 @@ Please select the most appropriate analysis scheme and provide your reasoning.""
     ]
     
     try:
-        selection_response = await selection_model.ainvoke(messages)
+        # Add timeout to the actual call (increased timeout)
+        selection_response = await asyncio.wait_for(
+            selection_model.ainvoke(messages),
+            timeout=60
+        )
+        
+        # Handle different response types based on model
+        if model_name.startswith("ollama:"):
+            # For ollama, parse response content and create default selection
+            response_text = selection_response.content
+            
+            # Simple scheme selection based on response content
+            selected_scheme = "general_review"  # Default
+            confidence = 0.8
+            rationale = f"Selected general_review scheme based on Ollama response: {response_text[:100]}..."
+            
+            # Try to extract scheme from response if it mentions specific schemes
+            for scheme in available_schemes:
+                if scheme.lower() in response_text.lower():
+                    selected_scheme = scheme
+                    rationale = f"Selected {scheme} scheme based on Ollama analysis"
+                    break
+        else:
+            # For structured output models
+            selected_scheme = selection_response.scheme_name
+            confidence = selection_response.confidence
+            rationale = selection_response.rationale
         
         # Validate selected scheme exists
-        if selection_response.scheme_name not in available_schemes:
+        if selected_scheme not in available_schemes:
             # Fall back to default scheme
             default_scheme = repository_config.get('analysis', {}).get('schemes', {}).get('default', 'general_review')
-            selection_response.scheme_name = default_scheme
-            selection_response.rationale = f"Selected scheme not available, using default: {default_scheme}"
-            selection_response.confidence = 0.5
+            selected_scheme = default_scheme
+            rationale = f"Selected scheme not available, using default: {default_scheme}"
+            confidence = 0.5
         
         # Check confidence threshold
-        if selection_response.confidence < agent_config.scheme_selection_confidence_threshold:
+        if confidence < agent_config.scheme_selection_confidence_threshold:
             # Use fallback scheme if confidence too low
             fallback_scheme = repository_config.get('analysis', {}).get('schemes', {}).get('fallback', 'general_review')
-            selection_response.scheme_name = fallback_scheme
-            selection_response.rationale = f"Low confidence in selection, using fallback: {fallback_scheme}"
+            selected_scheme = fallback_scheme
+            rationale = f"Low confidence in selection, using fallback: {fallback_scheme}"
         
         return Command(
-            goto="evaluate_conditions",
+            goto=END,
             update={
-                "selected_scheme": selection_response.scheme_name,
-                "selection_rationale": selection_response.rationale,
-                "messages": [HumanMessage(content=f"Selected scheme: {selection_response.scheme_name} (confidence: {selection_response.confidence:.2f})\\n\\nReasoning: {selection_response.rationale}")]
+                "selected_scheme": selected_scheme,
+                "selection_rationale": rationale,
+                "messages": [HumanMessage(content=f"Selected scheme: {selected_scheme} (confidence: {confidence:.2f})\\n\\nReasoning: {rationale}")]
             }
         )
         
@@ -153,7 +237,7 @@ Please select the most appropriate analysis scheme and provide your reasoning.""
         error_message = f"Scheme selection failed, using default: {default_scheme}. Error: {str(e)}"
         
         return Command(
-            goto="evaluate_conditions",
+            goto=END,
             update={
                 "selected_scheme": default_scheme,
                 "selection_rationale": error_message,
@@ -196,17 +280,21 @@ async def evaluate_conditions(
             }
         )
     
-    # Step 3: Analyze PR metadata for condition evaluation
-    try:
-        pr_analysis = await analyze_pr_metadata(pr_data, config)
-    except Exception:
-        # Use basic data if analysis fails
-        pr_analysis = {
-            "labels": [label.get("name", "") for label in pr_data.get("labels", [])],
-            "files_changed": pr_data.get("changed_files", 0),
-            "total_changes": pr_data.get("additions", 0) + pr_data.get("deletions", 0),
-            "author": pr_data.get("user", {}).get("login", "")
-        }
+    # Step 3: Use simplified PR data (skip tool call to avoid hanging)
+    labels = []
+    for label in pr_data.get("labels", []):
+        if isinstance(label, str):
+            labels.append(label)
+        else:
+            labels.append(label.get("name", ""))
+    
+    statistics = pr_data.get("statistics", {})
+    pr_analysis = {
+        "labels": labels,
+        "files_changed": statistics.get("files_changed", pr_data.get("changed_files", 0)),
+        "total_changes": statistics.get("lines_changed", pr_data.get("additions", 0) + pr_data.get("deletions", 0)),
+        "author": pr_data.get("author", {}).get("login", pr_data.get("user", {}).get("login", ""))
+    }
     
     # Step 4: Evaluate conditions by priority
     matching_conditions = []

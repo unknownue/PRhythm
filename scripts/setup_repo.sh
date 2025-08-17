@@ -39,7 +39,6 @@ WORKSPACE_DIR="$PROJECT_ROOT/workspaces/$REPO_NAME"
 echo "Creating workspace directory structure..."
 
 # Create main workspace directories
-mkdir -p "$WORKSPACE_DIR/metadata"
 mkdir -p "$WORKSPACE_DIR/repo-previous"
 mkdir -p "$WORKSPACE_DIR/repo-merged"
 mkdir -p "$WORKSPACE_DIR/reports"
@@ -52,36 +51,15 @@ mkdir -p "$WORKSPACE_DIR/reports/$CURRENT_YEAR/$CURRENT_MONTH"
 
 echo "Workspace directories created successfully at: $WORKSPACE_DIR"
 
-# Create initial metadata files
-echo "Creating initial metadata files..."
+# Create initial sync state file for PR tracking
+echo "Creating initial sync state file..."
 
-# Create repository info metadata
-cat > "$WORKSPACE_DIR/metadata/repo_info.json" << EOF
+cat > "$WORKSPACE_DIR/sync_state.json" << EOF
 {
-  "name": "$REPO_NAME",
-  "github_url": "$GITHUB_URL",
-  "clone_url": "$GITHUB_URL",
-  "workspace_created": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "last_analysis": null,
-  "total_analyses": 0
-}
-EOF
-
-# Create analysis history metadata
-cat > "$WORKSPACE_DIR/metadata/analysis_history.json" << EOF
-{
-  "analyses": [],
-  "last_updated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
-EOF
-
-# Create last processed PR metadata
-cat > "$WORKSPACE_DIR/metadata/last_processed_pr.json" << EOF
-{
-  "pr_number": null,
-  "pr_id": null,
-  "processed_at": null,
-  "commit_sha": null
+  "last_synced_pr": null,
+  "last_synced_pr_title": null,
+  "last_sync_time": null,
+  "repository": null
 }
 EOF
 
@@ -94,7 +72,7 @@ cat > "$WORKSPACE_DIR/reports/index.json" << EOF
 }
 EOF
 
-echo "Metadata files created successfully."
+echo "Initial files created successfully."
 
 # Create repository configuration template
 CONFIG_DIR="$PROJECT_ROOT/config/repositories"
@@ -225,6 +203,7 @@ echo "Workspace: $WORKSPACE_DIR"
 echo "Configuration: $CONFIG_FILE"
 echo ""
 echo "Next steps:"
-echo "1. Review and customize the repository configuration at: $CONFIG_FILE"
-echo "2. Ensure global configuration is properly set at: $PROJECT_ROOT/config/global.json"
-echo "3. Run PRhythm to start analyzing PRs for this repository"
+echo "1. Initialize PR synchronization: python main.py --init-repo-sync $GITHUB_URL <PR_NUMBER>"
+echo "2. Review and customize the repository configuration at: $CONFIG_FILE"  
+echo "3. Check sync status: python main.py --show-sync-status $REPO_NAME"
+echo "4. Analyze a PR: python main.py --analyze-pr <PR_URL_OR_FILE>"

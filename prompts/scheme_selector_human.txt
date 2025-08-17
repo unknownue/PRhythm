@@ -1,0 +1,12 @@
+PR Information:
+- Number: #{pr_number}
+- Title: {title}
+- Author: {author}
+- Labels: {labels}
+- Files Changed: {files_changed}
+- Total Changes: {total_changes} lines
+
+PR Description Preview:
+{description_preview}
+
+Please select "general_review" as the analysis scheme and provide a brief explanation.

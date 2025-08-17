@@ -5,29 +5,150 @@ The goal of this project is to analyze Pull Requests (PRs) for a specified GitHu
 
 ## Workflow
 
-### Initial Setup
-1.  The user configures the target GitHub repository, GitHub API key, LLM API key, and the output directory for reports.
-2.  The system clones the repository locally into two separate directories: `repo-previous` and `repo-merged`.
+### System Architecture
 
-### PR Analysis Trigger
-The PR analysis process is initiated whenever a new PR is merged into the target repository.
+```mermaid
+graph TB
+    A[User Input: PR URL/JSON] --> B[main.py Entry Point]
+    B --> C[WorkflowManager]
+    C --> D[LangGraph PRhythm Workflow]
+    
+    D --> E[initialize_analysis]
+    E --> F[select_scheme]
+    F --> G[collect_data]
+    G --> H[generate_analysis]
+    H --> I[process_report]
+    I --> J[Final Report Output]
+    
+    %% Subgraph for scheme selection
+    F --> K[scheme_selector Agent]
+    K --> L[evaluate_conditions]
+    L --> M[Selected Scheme]
+    
+    %% Subgraph for data collection
+    G --> N[data_collector Agent]
+    N --> O[execute_collection_tasks]
+    O --> P[Collected Data]
+    
+    %% Subgraph for report processing
+    I --> Q[report_processor Agent]
+    Q --> R[execute_processing_tasks]
+    R --> S[Processed Report]
+    
+    %% External dependencies
+    T[GitHub Client] --> C
+    U[Git Repository Workspaces] --> N
+    V[LLM Models] --> K
+    V --> N
+    V --> H
+    V --> Q
+```
 
-### PR Analysis Process
-1.  **Data Retrieval**: Utilize the GitHub API to fetch data for the newly merged PR.
-2.  **Agent Orchestration**: Create multiple specialized LLM agents to handle different stages of the analysis.
-3.  **Scheme Selection**: `agent-1` analyzes the PR content and selects an appropriate predefined PR analysis scheme to execute.
-4.  **Pre-merge Data Collection (Conditional)**: If the selected analysis scheme requires data from the state *before* the PR was merged:
-    *   `agent-2` operates within the `repo-previous` directory.
-    *   It checks out the commit immediately preceding the PR merge.
-    *   It collects the necessary pre-merge code environment data.
-5.  **Post-merge Data Collection (Conditional)**: If the selected analysis scheme requires data from the state *after* the PR was merged:
-    *   `agent-3` operates within the `repo-merged` directory.
-    *   It checks out the commit representing the state after the PR merge.
-    *   It collects the necessary post-merge code environment data.
-6.  **Data Aggregation & Prompt Construction**: `agent-3` (or potentially a dedicated agent) consolidates the collected pre-merge data, post-merge data, and the original PR data (if applicable). It then populates a comprehensive prompt template for PR analysis.
-7.  **LLM Analysis**: The constructed analysis prompt is sent to a remote LLM service to generate the core PR analysis report.
-8.  **Report Post-processing**: `agent-4` takes the raw analysis report and performs post-processing tasks based on the PR data. This may include correcting formatting issues, fixing broken links, etc.
-9.  **Output**: The finalized analysis report is saved to the user-configured output directory.
+### PR Analysis Process Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Main as main.py
+    participant WM as WorkflowManager
+    participant WF as PRhythm Workflow
+    participant GH as GitHub Client
+    participant A1 as Scheme Selector
+    participant A2 as Data Collector
+    participant A3 as Report Processor
+    participant LLM as LLM Service
+
+    User->>Main: --analyze-pr [PR_URL]
+    Main->>WM: analyze_pr(pr_input)
+    WM->>GH: get_pr_data(owner, repo, pr_number)
+    GH-->>WM: PR Data
+    WM->>WF: Execute workflow with PR data
+    
+    WF->>WF: initialize_analysis
+    Note over WF: Setup workspace, validate input
+    
+    WF->>A1: select_scheme
+    A1->>LLM: Analyze PR characteristics
+    LLM-->>A1: Suggested scheme
+    A1-->>WF: Selected analysis scheme
+    
+    WF->>A2: collect_data (parallel execution)
+    Note over A2: Pre-merge & Post-merge collectors
+    A2->>A2: Plan collection tasks
+    A2->>A2: Execute git commands
+    A2->>A2: Analyze files/directories
+    A2-->>WF: Collected data
+    
+    WF->>LLM: generate_analysis
+    Note over LLM: Generate analysis report using<br/>PR data + collected data
+    LLM-->>WF: Raw analysis report
+    
+    WF->>A3: process_report
+    A3->>A3: Fix formatting, links
+    A3->>A3: Add metadata, TOC
+    A3-->>WF: Processed report
+    
+    WF-->>WM: Analysis results
+    WM-->>Main: Final report
+    Main-->>User: Display results
+```
+
+### Component Architecture
+
+```mermaid
+graph LR
+    subgraph "Core Components"
+        WM[WorkflowManager]
+        GH[GitHubClient] 
+        PS[PRSyncManager]
+        AC[AgentConfiguration]
+    end
+    
+    subgraph "LangGraph Workflow"
+        MW[Main Workflow]
+        SS[Scheme Selector]
+        DC[Data Collector]
+        RP[Report Processor]
+    end
+    
+    subgraph "Tools & Utilities"
+        GT[Git Tools]
+        AT[Analysis Tools]
+        FT[File Tools]
+    end
+    
+    subgraph "External Services"
+        GA[GitHub API]
+        LM[LLM Services]
+        WS[Workspace Storage]
+    end
+    
+    WM --> MW
+    MW --> SS
+    MW --> DC
+    MW --> RP
+    
+    SS --> LM
+    DC --> GT
+    DC --> AT
+    DC --> FT
+    RP --> LM
+    
+    GH --> GA
+    PS --> WS
+    GT --> WS
+    AT --> WS
+```
+
+### Data Flow
+
+1. **Input Processing**: User provides PR URL or JSON file containing PR data
+2. **Workspace Setup**: System initializes workspace directories for pre-merge and post-merge analysis
+3. **Scheme Selection**: Agent-1 analyzes PR characteristics to select appropriate analysis scheme
+4. **Data Collection**: Agent-2 (pre-merge) and Agent-3 (post-merge) collect repository data based on scheme requirements
+5. **Analysis Generation**: Main workflow aggregates all data and sends to LLM for comprehensive analysis
+6. **Report Processing**: Agent-4 post-processes the raw report for better formatting and presentation
+7. **Output**: Final processed report is returned to user
 
 ## PR Analysis Schemes
 

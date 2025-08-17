@@ -87,6 +87,8 @@ class AgentState(MessagesState):
     # Input data
     pr_data: Optional[Dict] = None
     repository_config: Optional[Dict] = None
+    output_prompt_dir: Optional[str] = None
+    stop_at_generate_analysis: Optional[bool] = None
     
     # Analysis configuration
     selected_scheme: Optional[str] = None
@@ -98,6 +100,7 @@ class AgentState(MessagesState):
     
     # Processing state
     analysis_prompt: Optional[str] = None
+    analysis_prompt_saved: Optional[str] = None
     raw_analysis_report: Optional[str] = None
     final_report: Optional[str] = None
     
